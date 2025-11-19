@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import schedule
 import time
 import logging
+from report_generator import ReportGenerator
 
 # 配置日志
 logging.basicConfig(
@@ -163,67 +164,12 @@ class CallRecordingReporter:
                             
                     # 生成报表
                     report_date = self.extract_date_from_filename(zip_filename)
-                    return self.generate_report(report_data, report_date, total_operations, zip_filename)
+                    return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir)
                     
         except Exception as e:
             logging.error(f"处理文件 {zip_filename} 时出错: {e}")
             return None
             
-    def generate_report(self, report_data, report_date, total_operations, filename):
-        """生成报表"""
-        if not report_data:
-            return None
-            
-        # 按团队分组
-        team_data = {}
-        for (team, name, account), count in report_data.items():
-            if team not in team_data:
-                team_data[team] = []
-            team_data[team].append({
-                'name': name,
-                'account': account,
-                'count': count
-            })
-            
-        # 生成报表文本
-        report_lines = []
-        report_lines.append(f"📊 听录音统计报表")
-        report_lines.append(f"📅 日期: {report_date}")
-        report_lines.append(f"📁 文件: {filename}")
-        report_lines.append(f"📈 总操作次数: {total_operations}")
-        report_lines.append("")
-        
-        for team, members in sorted(team_data.items()):
-            report_lines.append(f"🏢 {team}")
-            for member in sorted(members, key=lambda x: x['count'], reverse=True):
-                report_lines.append(f"  👤 {member['name']} ({member['account']}): {member['count']}次")
-            report_lines.append("")
-            
-        # 添加统计摘要
-        report_lines.append(f"📋 摘要:")
-        report_lines.append(f"  • 参与团队数: {len(team_data)}")
-        report_lines.append(f"  • 参与人数: {len(report_data)}")
-        report_lines.append(f"  • 平均每人: {total_operations/len(report_data):.1f}次")
-        
-        report_text = "\n".join(report_lines)
-        
-        # 保存报表到文件
-        report_filename = f"report_{report_date.strftime('%Y%m%d')}.txt"
-        report_path = os.path.join(self.file_dir, report_filename)
-        
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write(report_text)
-            
-        logging.info(f"报表已保存到: {report_path}")
-        
-        return {
-            'text': report_text,
-            'date': report_date,
-            'total_operations': total_operations,
-            'teams': len(team_data),
-            'people': len(report_data),
-            'filename': report_filename
-        }
         
     def send_to_wechat(self, report_data):
         """发送报表到企业微信群"""
