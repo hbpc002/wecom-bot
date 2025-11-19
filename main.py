@@ -5,6 +5,8 @@ import re
 import chardet
 import requests
 import json
+import base64
+import hashlib
 from datetime import datetime, timedelta
 import schedule
 import time
@@ -164,12 +166,38 @@ class CallRecordingReporter:
                             
                     # 生成报表
                     report_date = self.extract_date_from_filename(zip_filename)
-                    return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir)
+                    return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                     
         except Exception as e:
             logging.error(f"处理文件 {zip_filename} 时出错: {e}")
             return None
             
+        
+    def _calculate_md5(self, data):
+        """计算数据的MD5值"""
+        return hashlib.md5(data).hexdigest()
+    
+    def _image_to_base64(self, image_path):
+        """将图片转换为base64编码"""
+        try:
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+            
+            # 检查图片大小（不能超过2M）
+            if len(image_data) > 2 * 1024 * 1024:
+                logging.error(f"图片大小超过2M限制: {len(image_data)} bytes")
+                return None, None
+            
+            # 计算MD5
+            md5_hash = self._calculate_md5(image_data)
+            
+            # 转换为base64
+            base64_data = base64.b64encode(image_data).decode('utf-8')
+            
+            return base64_data, md5_hash
+        except Exception as e:
+            logging.error(f"处理图片失败: {e}")
+            return None, None
         
     def send_to_wechat(self, report_data):
         """发送报表到企业微信群"""
@@ -178,33 +206,151 @@ class CallRecordingReporter:
             return False
             
         try:
-            message = {
-                "msgtype": "text",
-                "text": {
-                    "content": report_data['text']
+            # 添加调试日志
+            logging.info(f"准备发送报表数据: {report_data.keys()}")
+            logging.info(f"文本内容预览: {report_data['text'][:200]}...")
+            
+            # 检查是否有图片报表
+            if 'image_filename' in report_data:
+                logging.info("检测到图片报表，准备发送组合消息")
+                image_path = os.path.join(self.file_dir, report_data['image_filename'])
+                # 尝试使用JPEG格式的图片（如果存在）
+                jpeg_path = image_path[:-4] + '.jpg' if image_path.endswith('.png') else image_path
+                
+                # 优先使用JPEG格式
+                if os.path.exists(jpeg_path):
+                    image_path = jpeg_path
+                    logging.info(f"使用JPEG格式图片: {image_path}")
+                elif not os.path.exists(image_path):
+                    # 如果图片文件不存在，跳过图片发送
+                    logging.warning(f"图片文件不存在: {image_path}")
+                else:
+                    # 使用PNG格式
+                    logging.info(f"使用PNG格式图片: {image_path}")
+                
+                if os.path.exists(image_path):
+                    # 检查文件格式
+                    file_extension = os.path.splitext(image_path)[1].lower()
+                    if file_extension not in ['.jpg', '.jpeg', '.png']:
+                        logging.error(f"不支持的图片格式: {file_extension}")
+                    else:
+                        # 转换图片为base64和md5
+                        base64_data, md5_hash = self._image_to_base64(image_path)
+                        
+                        if base64_data and md5_hash:
+                            # 创建markdown格式的消息，包含文本和图片
+                            # 注意：企业微信markdown消息不支持直接嵌入图片，所以我们先发送图片，再发送markdown文本
+                            # 但我们可以优化消息格式，让文本更清晰
+                            
+                            logging.info("发送图片消息...")
+                            image_message = {
+                                "msgtype": "image",
+                                "image": {
+                                    "base64": base64_data,
+                                    "md5": md5_hash
+                                }
+                            }
+                            
+                            response = requests.post(
+                                self.webhook_url,
+                                json=image_message,
+                                timeout=10
+                            )
+                            
+                            if response.status_code == 200:
+                                result = response.json()
+                                if result.get('errcode') == 0:
+                                    logging.info("图片报表发送成功")
+                                    
+                                    # 等待一小段时间确保图片消息显示
+                                    import time
+                                    time.sleep(0.5)
+                                    
+                                    # 发送markdown格式的文本消息
+                                    markdown_content = report_data['text']
+                                    
+                                    # 优化文本格式，添加说明
+                                    if not markdown_content.startswith("📊 听录音统计报表"):
+                                        markdown_content = f"📊 听录音统计报表\n{markdown_content}"
+                                    
+                                    markdown_message = {
+                                        "msgtype": "markdown",
+                                        "markdown": {
+                                            "content": markdown_content
+                                        }
+                                    }
+                                    
+                                    logging.info("发送markdown文本消息...")
+                                    response = requests.post(
+                                        self.webhook_url,
+                                        json=markdown_message,
+                                        timeout=10
+                                    )
+                                    
+                                    if response.status_code == 200:
+                                        result = response.json()
+                                        if result.get('errcode') == 0:
+                                            logging.info("markdown文本报表发送成功")
+                                            return True
+                                        else:
+                                            logging.error(f"markdown文本发送失败: {result}")
+                                            return False
+                                    else:
+                                        logging.error(f"markdown文本HTTP请求失败: {response.status_code}")
+                                        return False
+                                else:
+                                    logging.error(f"图片发送失败: {result}")
+                                    # 如果图片发送失败，尝试发送markdown文本
+                                    return self._send_markdown_text_only(report_data['text'])
+                            else:
+                                logging.error(f"图片HTTP请求失败: {response.status_code}")
+                                # 如果图片发送失败，尝试发送markdown文本
+                                return self._send_markdown_text_only(report_data['text'])
+                        else:
+                            logging.error("图片处理失败，无法获取base64或md5")
+                            # 如果图片处理失败，尝试发送markdown文本
+                            return self._send_markdown_text_only(report_data['text'])
+                else:
+                    # 如果没有图片文件，只发送markdown文本
+                    return self._send_markdown_text_only(report_data['text'])
+            else:
+                # 如果没有图片报表，只发送markdown文本
+                return self._send_markdown_text_only(report_data['text'])
+                
+        except Exception as e:
+            logging.error(f"发送报表时出错: {e}")
+            return False
+    
+    def _send_markdown_text_only(self, text_content):
+        """只发送markdown格式的文本消息"""
+        try:
+            markdown_message = {
+                "msgtype": "markdown",
+                "markdown": {
+                    "content": text_content
                 }
             }
             
+            logging.info("发送纯markdown文本消息...")
             response = requests.post(
                 self.webhook_url,
-                json=message,
+                json=markdown_message,
                 timeout=10
             )
             
             if response.status_code == 200:
                 result = response.json()
                 if result.get('errcode') == 0:
-                    logging.info("报表发送成功")
+                    logging.info("纯markdown文本报表发送成功")
                     return True
                 else:
-                    logging.error(f"发送失败: {result}")
+                    logging.error(f"纯markdown文本发送失败: {result}")
                     return False
             else:
-                logging.error(f"HTTP请求失败: {response.status_code}")
+                logging.error(f"纯markdown文本HTTP请求失败: {response.status_code}")
                 return False
-                
         except Exception as e:
-            logging.error(f"发送报表时出错: {e}")
+            logging.error(f"发送纯markdown文本时出错: {e}")
             return False
             
     def process_daily_files(self):
