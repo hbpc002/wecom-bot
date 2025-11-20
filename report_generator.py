@@ -121,9 +121,7 @@ class ReportGenerator:
             
             # 创建包含标题和表格的完整图片内容
             full_image_lines = []
-            full_image_lines.append("📊 听录音统计报表")
-            full_image_lines.append(f"📅 日期: {report_date}")
-            full_image_lines.append(f"📁 文件: {filename}")
+            full_image_lines.append(f"📊 {report_date.strftime('%Y年%m月%d日')}听录音统计报表")
             full_image_lines.append("")  # 空行
             full_image_lines.append("## 📈 汇总信息")
             full_image_lines.append(f"- **总操作次数**: {total_operations}")

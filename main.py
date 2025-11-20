@@ -234,82 +234,63 @@ class CallRecordingReporter:
                     if file_extension not in ['.jpg', '.jpeg', '.png']:
                         logging.error(f"不支持的图片格式: {file_extension}")
                     else:
-                        # 转换图片为base64和md5
-                        base64_data, md5_hash = self._image_to_base64(image_path)
+                        # 先上传图片获取media_id
+                        logging.info("上传图片获取media_id...")
+                        upload_url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key={self.webhook_url.split('=')[1]}&type=image"
                         
-                        if base64_data and md5_hash:
-                            # 创建markdown格式的消息，包含文本和图片
-                            # 注意：企业微信markdown消息不支持直接嵌入图片，所以我们先发送图片，再发送markdown文本
-                            # 但我们可以优化消息格式，让文本更清晰
-                            
-                            logging.info("发送图片消息...")
-                            image_message = {
-                                "msgtype": "image",
-                                "image": {
-                                    "base64": base64_data,
-                                    "md5": md5_hash
-                                }
-                            }
-                            
-                            response = requests.post(
-                                self.webhook_url,
-                                json=image_message,
-                                timeout=10
-                            )
-                            
-                            if response.status_code == 200:
-                                result = response.json()
-                                if result.get('errcode') == 0:
-                                    logging.info("图片报表发送成功")
-                                    
-                                    # 等待一小段时间确保图片消息显示
-                                    import time
-                                    time.sleep(0.5)
-                                    
-                                    # 发送markdown格式的文本消息
-                                    markdown_content = report_data['text']
-                                    
-                                    # 优化文本格式，添加说明
-                                    if not markdown_content.startswith("📊 听录音统计报表"):
-                                        markdown_content = f"📊 听录音统计报表\n{markdown_content}"
-                                    
-                                    markdown_message = {
-                                        "msgtype": "markdown",
-                                        "markdown": {
-                                            "content": markdown_content
-                                        }
+                        file_obj = open(image_path, 'rb')
+                        files = {'media': file_obj}
+                        upload_response = requests.post(upload_url, files=files, timeout=10)
+                        file_obj.close()
+                        
+                        if upload_response.status_code == 200:
+                            upload_result = upload_response.json()
+                            if upload_result.get('errcode') == 0:
+                                media_id = upload_result.get('media_id')
+                                logging.info(f"图片上传成功，获取到media_id: {media_id}")
+                                
+                                # 创建包含markdown和图片的消息
+                                markdown_content = report_data['text']
+                                
+                                # 在markdown内容中添加图片引用
+                                image_markdown = f"\n\n![表格](https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={self.webhook_url.split('=')[1]}&media_id={media_id})"
+                                full_markdown = markdown_content + image_markdown
+                                
+                                markdown_message = {
+                                    "msgtype": "markdown",
+                                    "markdown": {
+                                        "content": full_markdown
                                     }
-                                    
-                                    logging.info("发送markdown文本消息...")
-                                    response = requests.post(
-                                        self.webhook_url,
-                                        json=markdown_message,
-                                        timeout=10
-                                    )
-                                    
-                                    if response.status_code == 200:
-                                        result = response.json()
-                                        if result.get('errcode') == 0:
-                                            logging.info("markdown文本报表发送成功")
-                                            return True
-                                        else:
-                                            logging.error(f"markdown文本发送失败: {result}")
-                                            return False
+                                }
+                                
+                                logging.info("发送包含图片的markdown消息...")
+                                response = requests.post(
+                                    self.webhook_url,
+                                    json=markdown_message,
+                                    timeout=10
+                                )
+                                
+                                if response.status_code == 200:
+                                    result = response.json()
+                                    if result.get('errcode') == 0:
+                                        logging.info("包含图片的markdown消息发送成功")
+                                        return True
                                     else:
-                                        logging.error(f"markdown文本HTTP请求失败: {response.status_code}")
-                                        return False
+                                        logging.error(f"包含图片的markdown消息发送失败: {result}")
+                                        # 如果组合消息发送失败，尝试分别发送
+                                        return self._send_separate_messages(report_data['text'], image_path)
                                 else:
-                                    logging.error(f"图片发送失败: {result}")
-                                    # 如果图片发送失败，尝试发送markdown文本
-                                    return self._send_markdown_text_only(report_data['text'])
+                                    logging.error(f"包含图片的markdown消息HTTP请求失败: {response.status_code}")
+                                    # 如果组合消息发送失败，尝试分别发送
+                                    return self._send_separate_messages(report_data['text'], image_path)
                             else:
-                                logging.error(f"图片HTTP请求失败: {response.status_code}")
-                                # 如果图片发送失败，尝试发送markdown文本
-                                return self._send_markdown_text_only(report_data['text'])
+                                logging.error(f"图片上传失败: {upload_result}")
+                                # 如果图片上传失败，尝试使用base64嵌入图片到markdown中
+                                return self._send_markdown_with_embedded_image(report_data['text'], image_path)
                         else:
-                            logging.error("图片处理失败，无法获取base64或md5")
-                            # 如果图片处理失败，尝试发送markdown文本
-                            return self._send_markdown_text_only(report_data['text'])
+                            logging.error(f"图片上传HTTP请求失败: {upload_response.status_code}")
+                            # 如果图片上传失败，尝试使用base64嵌入图片到markdown中
+                            return self._send_markdown_with_embedded_image(report_data['text'], image_path)
                 else:
                     # 如果没有图片文件，只发送markdown文本
                     return self._send_markdown_text_only(report_data['text'])
@@ -319,6 +300,51 @@ class CallRecordingReporter:
                 
         except Exception as e:
             logging.error(f"发送报表时出错: {e}")
+            return False
+    
+    def _send_separate_messages(self, text_content, image_path):
+        """分别发送文本和图片消息"""
+        try:
+            # 先发送图片
+            base64_data, md5_hash = self._image_to_base64(image_path)
+            
+            if base64_data and md5_hash:
+                image_message = {
+                    "msgtype": "image",
+                    "image": {
+                        "base64": base64_data,
+                        "md5": md5_hash
+                    }
+                }
+                
+                logging.info("发送图片消息...")
+                response = requests.post(
+                    self.webhook_url,
+                    json=image_message,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('errcode') == 0:
+                        logging.info("图片报表发送成功")
+                        
+                        # 等待一小段时间确保图片消息显示
+                        time.sleep(0.5)
+                        
+                        # 再发送markdown文本
+                        return self._send_markdown_text_only(text_content)
+                    else:
+                        logging.error(f"图片发送失败: {result}")
+                        return False
+                else:
+                    logging.error(f"图片HTTP请求失败: {response.status_code}")
+                    return False
+            else:
+                logging.error("图片处理失败，无法获取base64或md5")
+                return False
+        except Exception as e:
+            logging.error(f"分别发送消息时出错: {e}")
             return False
     
     def _send_markdown_text_only(self, text_content):
@@ -352,6 +378,158 @@ class CallRecordingReporter:
         except Exception as e:
             logging.error(f"发送纯markdown文本时出错: {e}")
             return False
+    
+    def _send_markdown_with_embedded_image(self, text_content, image_path):
+        """发送包含嵌入图片的markdown消息"""
+        try:
+            # 尝试从图片中提取表格数据并转换为markdown表格
+            table_markdown = self._extract_table_from_image(image_path)
+            
+            if table_markdown:
+                # 将汇总信息和表格合并为一个完整的markdown消息
+                combined_markdown = text_content + "\n\n" + table_markdown
+                
+                # 发送完整的markdown消息
+                markdown_message = {
+                    "msgtype": "markdown",
+                    "markdown": {
+                        "content": combined_markdown
+                    }
+                }
+                
+                logging.info("发送包含表格的markdown消息...")
+                response = requests.post(
+                    self.webhook_url,
+                    json=markdown_message,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('errcode') == 0:
+                        logging.info("包含表格的markdown消息发送成功")
+                        return True
+                    else:
+                        logging.error(f"包含表格的markdown消息发送失败: {result}")
+                        # 如果失败，尝试只发送原始markdown文本
+                        return self._send_markdown_text_only(text_content)
+                else:
+                    logging.error(f"包含表格的markdown消息HTTP请求失败: {response.status_code}")
+                    # 如果失败，尝试只发送原始markdown文本
+                    return self._send_markdown_text_only(text_content)
+            else:
+                logging.error("无法从图片中提取表格数据")
+                # 如果无法提取表格数据，只发送原始markdown文本
+                return self._send_markdown_text_only(text_content)
+                
+        except Exception as e:
+            logging.error(f"发送包含嵌入图片的markdown消息时出错: {e}")
+            # 如果出错，尝试只发送markdown文本
+            return self._send_markdown_text_only(text_content)
+    
+    def _extract_table_from_image(self, image_path):
+        """从图片路径中提取原始表格数据并转换为markdown表格"""
+        try:
+            # 从图片路径获取对应的CSV数据
+            # 这里我们需要重新读取原始数据，因为图片已经生成
+            # 我们可以从report_generator.py中获取表格数据
+            
+            # 由于我们无法直接访问原始数据，我们尝试从文件名推断
+            # 这是一个简化的实现，实际中可能需要更复杂的逻辑
+            
+            # 读取当天处理的文件，获取表格数据
+            today = datetime.now().strftime('%Y%m%d')
+            csv_files = [f for f in os.listdir(self.file_dir) if f.endswith('.zip') and today in f]
+            
+            if not csv_files:
+                return None
+                
+            # 使用最新的文件
+            latest_file = sorted(csv_files)[-1]
+            zip_path = os.path.join(self.file_dir, latest_file)
+            
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                csv_files = [f for f in zip_ref.namelist() if f.endswith('.csv')]
+                if not csv_files:
+                    return None
+                    
+                csv_filename = csv_files[0]
+                
+                with zip_ref.open(csv_filename, 'r') as csvfile:
+                    raw_data = csvfile.read()
+                    
+                    # 检测编码
+                    encoding_result = chardet.detect(raw_data)
+                    encoding = encoding_result['encoding'] or 'gbk'
+                    
+                    # 解码内容
+                    content = raw_data.decode(encoding)
+                    lines = content.splitlines()
+                    
+                    # 解析CSV数据
+                    reader = csv.reader(lines)
+                    header = next(reader, None)
+                    
+                    if not header:
+                        return None
+                    
+                    # 统计数据
+                    report_data = {}
+                    
+                    for row in reader:
+                        if len(row) < 6:
+                            continue
+                            
+                        account = row[1].strip()
+                        name = row[2].strip()
+                        
+                        if account in self.team_mapping:
+                            team = self.team_mapping[account]
+                            key = (team, name, account)
+                            if key not in report_data:
+                                report_data[key] = 0
+                            report_data[key] += 1
+                    
+                    # 按团队分组
+                    team_data = {}
+                    for (team, name, account), count in report_data.items():
+                        if team not in team_data:
+                            team_data[team] = []
+                        team_data[team].append({
+                            'name': name,
+                            'account': account,
+                            'count': count
+                        })
+                    
+                    # 将所有团队成员数据合并到一个列表中
+                    all_members = []
+                    for team, members in team_data.items():
+                        for member in members:
+                            all_members.append({
+                                'team': team,
+                                'name': member['name'],
+                                'account': member['account'],
+                                'count': member['count']
+                            })
+                    
+                    # 按操作次数降序排序
+                    all_members_sorted = sorted(all_members, key=lambda x: x['count'], reverse=True)
+                    
+                    # 生成markdown表格
+                    table_lines = []
+                    table_lines.append("## 📋 详细数据")
+                    table_lines.append("")
+                    table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 操作次数 |")
+                    table_lines.append("|------|------|------|------|----------|")
+                    
+                    for i, member in enumerate(all_members_sorted, start=1):
+                        table_lines.append(f"| {i} | {member['team']} | {member['name']} | {member['account']} | {member['count']} |")
+                    
+                    return "\n".join(table_lines)
+                    
+        except Exception as e:
+            logging.error(f"从图片中提取表格数据时出错: {e}")
+            return None
             
     def process_daily_files(self):
         """处理当天的新文件"""
