@@ -103,6 +103,27 @@ class CallRecordingReporter:
             date_str = match.group(1)
             return datetime.strptime(date_str, '%Y%m%d').date()
         return None
+    
+    def extract_date_from_operation_time(self, operation_dates):
+        """从操作时间列表中提取日期"""
+        if not operation_dates:
+            return None
+            
+        try:
+            # 使用第一个操作时间来提取日期
+            # 操作时间格式: "2025-11-19 21:43:45" (包含秒)
+            first_time = operation_dates[0]
+            # 解析日期时间 - 支持多种格式
+            try:
+                # 首先尝试包含秒的格式
+                dt = datetime.strptime(first_time, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                # 如果失败，尝试不包含秒的格式
+                dt = datetime.strptime(first_time, '%Y-%m-%d %H:%M')
+            return dt.date()
+        except Exception as e:
+            logging.warning(f"从操作时间提取日期失败: {e}, 操作时间: {operation_dates[:5] if operation_dates else '空'}")
+            return None
         
     def process_zip_file(self, zip_filename):
         """处理单个zip文件"""
@@ -157,6 +178,7 @@ class CallRecordingReporter:
                     # 统计数据
                     report_data = {}
                     total_operations = 0
+                    operation_dates = []  # 存储所有操作时间
                     
                     for row_num, row in enumerate(reader, start=2):  # 从第2行开始计数
                         try:
@@ -182,12 +204,20 @@ class CallRecordingReporter:
                                 report_data[key] += 1
                                 total_operations += 1
                                 
+                                # 收集操作时间
+                                if operation_time:
+                                    operation_dates.append(operation_time)
+                                
                         except Exception as e:
                             logging.warning(f"跳过第{row_num}行数据: {e}, 行内容: {row}")
                             continue
+                    
+                    # 从操作时间中提取日期
+                    report_date = self.extract_date_from_operation_time(operation_dates)
+                    if not report_date:
+                        # 如果无法从操作时间提取，则回退到文件名提取
+                        report_date = self.extract_date_from_filename(zip_filename)
                             
-                    # 生成报表
-                    report_date = self.extract_date_from_filename(zip_filename)
                     return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                     
         except Exception as e:
