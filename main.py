@@ -28,6 +28,28 @@ class CallRecordingReporter:
         self.file_dir = file_dir
         self.processed_files = set()
         self.team_mapping = {}
+        
+        # 创建一个禁用代理的会话对象
+        self.session = requests.Session()
+        
+        # 更彻底地禁用代理
+        self.session.proxies = {}
+        self.session.trust_env = False  # 禁用从环境变量读取代理设置
+        
+        # 设置全局代理禁用
+        import os
+        os.environ['HTTP_PROXY'] = ''
+        os.environ['HTTPS_PROXY'] = ''
+        os.environ['FTP_PROXY'] = ''
+        os.environ['NO_PROXY'] = '*'
+        os.environ['http_proxy'] = ''
+        os.environ['https_proxy'] = ''
+        os.environ['ftp_proxy'] = ''
+        os.environ['no_proxy'] = '*'
+        
+        # 设置requests默认代理为None
+        requests.adapters.DEFAULT_RETRIES = 3
+        
         self.load_team_mapping()
         
     def load_team_mapping(self):
@@ -177,6 +199,141 @@ class CallRecordingReporter:
         """计算数据的MD5值"""
         return hashlib.md5(data).hexdigest()
     
+    def upload_image_to_wechat(self, image_path):
+        """上传图片到企业微信获取media_id"""
+        try:
+            # 检查文件是否存在
+            if not os.path.exists(image_path):
+                logging.error(f"图片文件不存在: {image_path}")
+                return None
+                
+            # 检查文件大小
+            file_size = os.path.getsize(image_path)
+            if file_size > 2 * 1024 * 1024:  # 2MB
+                logging.error(f"图片文件过大: {file_size} bytes，超过2MB限制")
+                return None
+                
+            # 检查文件格式
+            file_extension = os.path.splitext(image_path)[1].lower()
+            if file_extension not in ['.jpg', '.jpeg', '.png']:
+                logging.error(f"不支持的图片格式: {file_extension}")
+                return None
+                
+            # 确定MIME类型
+            mime_type = 'image/jpeg' if file_extension in ['.jpg', '.jpeg'] else 'image/png'
+            
+            # 构建上传URL - 修复URL格式
+            key = self.webhook_url.split('=')[1]
+            upload_url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key={key}&type=image"
+            
+            # 读取文件内容
+            with open(image_path, 'rb') as file_obj:
+                file_data = file_obj.read()
+            
+            # 尝试多种上传方式
+            # 方式1：使用files参数
+            try:
+                files = {
+                    'media': (os.path.basename(image_path), file_data, mime_type)
+                }
+                
+                upload_response = self.session.post(
+                    upload_url,
+                    files=files,
+                    timeout=10,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                )
+                
+                if upload_response.status_code == 200:
+                    upload_result = upload_response.json()
+                    if upload_result.get('errcode') == 0:
+                        media_id = upload_result.get('media_id')
+                        logging.info(f"图片上传成功（方式1），获取到media_id: {media_id}")
+                        return media_id
+                    else:
+                        logging.error(f"图片上传失败（方式1）: {upload_result}")
+                else:
+                    logging.error(f"图片上传HTTP请求失败（方式1）: {upload_response.status_code}")
+            except Exception as e:
+                logging.error(f"图片上传异常（方式1）: {e}")
+            
+            # 方式2：使用data参数
+            try:
+                # 构建multipart/form-data
+                boundary = '----WebKitFormBoundary' + ''.join(['0123456789ABCDEF'][int(x)] for x in os.urandom(16))
+                
+                body = (
+                    f'--{boundary}\r\n'
+                    f'Content-Disposition: form-data; name="media"; filename="{os.path.basename(image_path)}"\r\n'
+                    f'Content-Type: {mime_type}\r\n\r\n'
+                ).encode('utf-8')
+                body += file_data
+                body += f'\r\n--{boundary}--\r\n'.encode('utf-8')
+                
+                headers = {
+                    'Content-Type': f'multipart/form-data; boundary={boundary}',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+                
+                upload_response = self.session.post(
+                    upload_url,
+                    data=body,
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if upload_response.status_code == 200:
+                    upload_result = upload_response.json()
+                    if upload_result.get('errcode') == 0:
+                        media_id = upload_result.get('media_id')
+                        logging.info(f"图片上传成功（方式2），获取到media_id: {media_id}")
+                        return media_id
+                    else:
+                        logging.error(f"图片上传失败（方式2）: {upload_result}")
+                else:
+                    logging.error(f"图片上传HTTP请求失败（方式2）: {upload_response.status_code}")
+            except Exception as e:
+                logging.error(f"图片上传异常（方式2）: {e}")
+            
+            # 方式3：使用base64编码
+            try:
+                base64_data = base64.b64encode(file_data).decode('utf-8')
+                md5_hash = hashlib.md5(file_data).hexdigest()
+                
+                # 使用企业微信的base64上传方式
+                data = {
+                    "msgtype": "image",
+                    "image": {
+                        "base64": base64_data,
+                        "md5": md5_hash
+                    }
+                }
+                
+                response = self.session.post(
+                    self.webhook_url,
+                    json=data,
+                    timeout=10,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('errcode') == 0:
+                        logging.info(f"图片上传成功（方式3），使用base64方式")
+                        return "base64_success"  # 特殊标记，表示使用base64方式成功
+                    else:
+                        logging.error(f"图片上传失败（方式3）: {result}")
+                else:
+                    logging.error(f"图片上传HTTP请求失败（方式3）: {response.status_code}")
+            except Exception as e:
+                logging.error(f"图片上传异常（方式3）: {e}")
+                
+            return None
+                
+        except Exception as e:
+            logging.error(f"上传图片时出错: {e}")
+            return None
+    
     def _image_to_base64(self, image_path):
         """将图片转换为base64编码"""
         try:
@@ -232,21 +389,16 @@ class CallRecordingReporter:
                         logging.error(f"不支持的图片格式: {file_extension}")
                         return False
                     else:
-                        # 上传图片获取media_id
+                        # 使用修复后的上传方法
                         logging.info("上传图片获取media_id...")
-                        upload_url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key={self.webhook_url.split('=')[1]}&type=image"
-
-                        file_obj = open(image_path, 'rb')
-                        files = {'media': file_obj}
-                        upload_response = requests.post(upload_url, files=files, timeout=10)
-                        file_obj.close()
-
-                        if upload_response.status_code == 200:
-                            upload_result = upload_response.json()
-                            if upload_result.get('errcode') == 0:
-                                media_id = upload_result.get('media_id')
-                                logging.info(f"图片上传成功，获取到media_id: {media_id}")
-
+                        media_id = self.upload_image_to_wechat(image_path)
+                        
+                        if media_id:
+                            if media_id == "base64_success":
+                                # 使用base64方式已经成功发送
+                                logging.info("图片报表发送成功（base64方式）")
+                                return True
+                            else:
                                 # 创建图片消息
                                 image_message = {
                                     "msgtype": "image",
@@ -256,10 +408,11 @@ class CallRecordingReporter:
                                 }
 
                                 logging.info("发送图片消息...")
-                                response = requests.post(
+                                response = self.session.post(
                                     self.webhook_url,
                                     json=image_message,
-                                    timeout=10
+                                    timeout=10,
+                                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
                                 )
 
                                 if response.status_code == 200:
@@ -273,11 +426,8 @@ class CallRecordingReporter:
                                 else:
                                     logging.error(f"图片HTTP请求失败: {response.status_code}")
                                     return False
-                            else:
-                                logging.error(f"图片上传失败: {upload_result}")
-                                return False
                         else:
-                            logging.error(f"图片上传HTTP请求失败: {upload_response.status_code}")
+                            logging.error("图片上传失败，无法获取media_id")
                             return False
                 else:
                     logging.warning("没有找到图片文件")
@@ -306,10 +456,11 @@ class CallRecordingReporter:
                 }
                 
                 logging.info("发送图片消息...")
-                response = requests.post(
+                response = self.session.post(
                     self.webhook_url,
                     json=image_message,
-                    timeout=10
+                    timeout=10,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
                 )
                 
                 if response.status_code == 200:
@@ -346,10 +497,11 @@ class CallRecordingReporter:
             }
             
             logging.info("发送纯markdown文本消息...")
-            response = requests.post(
+            response = self.session.post(
                 self.webhook_url,
                 json=markdown_message,
-                timeout=10
+                timeout=10,
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             )
             
             if response.status_code == 200:
@@ -386,10 +538,11 @@ class CallRecordingReporter:
                 }
                 
                 logging.info("发送包含表格的markdown消息...")
-                response = requests.post(
+                response = self.session.post(
                     self.webhook_url,
                     json=markdown_message,
-                    timeout=10
+                    timeout=10,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
                 )
                 
                 if response.status_code == 200:
