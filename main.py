@@ -200,23 +200,19 @@ class CallRecordingReporter:
             return None, None
         
     def send_to_wechat(self, report_data):
-        """发送报表到企业微信群"""
+        """发送报表到企业微信群，只发送图片"""
         if not report_data:
             logging.warning("没有报表数据可发送")
             return False
-            
+
         try:
-            # 添加调试日志
-            logging.info(f"准备发送报表数据: {report_data.keys()}")
-            logging.info(f"文本内容预览: {report_data['text'][:200]}...")
-            
             # 检查是否有图片报表
             if 'image_filename' in report_data:
-                logging.info("检测到图片报表，准备发送组合消息")
+                logging.info("检测到图片报表，准备发送图片")
                 image_path = os.path.join(self.file_dir, report_data['image_filename'])
                 # 尝试使用JPEG格式的图片（如果存在）
                 jpeg_path = image_path[:-4] + '.jpg' if image_path.endswith('.png') else image_path
-                
+
                 # 优先使用JPEG格式
                 if os.path.exists(jpeg_path):
                     image_path = jpeg_path
@@ -224,80 +220,72 @@ class CallRecordingReporter:
                 elif not os.path.exists(image_path):
                     # 如果图片文件不存在，跳过图片发送
                     logging.warning(f"图片文件不存在: {image_path}")
+                    return False
                 else:
                     # 使用PNG格式
                     logging.info(f"使用PNG格式图片: {image_path}")
-                
+
                 if os.path.exists(image_path):
                     # 检查文件格式
                     file_extension = os.path.splitext(image_path)[1].lower()
                     if file_extension not in ['.jpg', '.jpeg', '.png']:
                         logging.error(f"不支持的图片格式: {file_extension}")
+                        return False
                     else:
-                        # 先上传图片获取media_id
+                        # 上传图片获取media_id
                         logging.info("上传图片获取media_id...")
                         upload_url = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media?key={self.webhook_url.split('=')[1]}&type=image"
-                        
+
                         file_obj = open(image_path, 'rb')
                         files = {'media': file_obj}
                         upload_response = requests.post(upload_url, files=files, timeout=10)
                         file_obj.close()
-                        
+
                         if upload_response.status_code == 200:
                             upload_result = upload_response.json()
                             if upload_result.get('errcode') == 0:
                                 media_id = upload_result.get('media_id')
                                 logging.info(f"图片上传成功，获取到media_id: {media_id}")
-                                
-                                # 创建包含markdown和图片的消息
-                                markdown_content = report_data['text']
-                                
-                                # 在markdown内容中添加图片引用
-                                image_markdown = f"\n\n![表格](https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={self.webhook_url.split('=')[1]}&media_id={media_id})"
-                                full_markdown = markdown_content + image_markdown
-                                
-                                markdown_message = {
-                                    "msgtype": "markdown",
-                                    "markdown": {
-                                        "content": full_markdown
+
+                                # 创建图片消息
+                                image_message = {
+                                    "msgtype": "image",
+                                    "image": {
+                                        "media_id": media_id
                                     }
                                 }
-                                
-                                logging.info("发送包含图片的markdown消息...")
+
+                                logging.info("发送图片消息...")
                                 response = requests.post(
                                     self.webhook_url,
-                                    json=markdown_message,
+                                    json=image_message,
                                     timeout=10
                                 )
-                                
+
                                 if response.status_code == 200:
                                     result = response.json()
                                     if result.get('errcode') == 0:
-                                        logging.info("包含图片的markdown消息发送成功")
+                                        logging.info("图片报表发送成功")
                                         return True
                                     else:
-                                        logging.error(f"包含图片的markdown消息发送失败: {result}")
-                                        # 如果组合消息发送失败，尝试分别发送
-                                        return self._send_separate_messages(report_data['text'], image_path)
+                                        logging.error(f"图片发送失败: {result}")
+                                        return False
                                 else:
-                                    logging.error(f"包含图片的markdown消息HTTP请求失败: {response.status_code}")
-                                    # 如果组合消息发送失败，尝试分别发送
-                                    return self._send_separate_messages(report_data['text'], image_path)
+                                    logging.error(f"图片HTTP请求失败: {response.status_code}")
+                                    return False
                             else:
                                 logging.error(f"图片上传失败: {upload_result}")
-                                # 如果图片上传失败，尝试使用base64嵌入图片到markdown中
-                                return self._send_markdown_with_embedded_image(report_data['text'], image_path)
+                                return False
                         else:
                             logging.error(f"图片上传HTTP请求失败: {upload_response.status_code}")
-                            # 如果图片上传失败，尝试使用base64嵌入图片到markdown中
-                            return self._send_markdown_with_embedded_image(report_data['text'], image_path)
+                            return False
                 else:
-                    # 如果没有图片文件，只发送markdown文本
-                    return self._send_markdown_text_only(report_data['text'])
+                    logging.warning("没有找到图片文件")
+                    return False
             else:
-                # 如果没有图片报表，只发送markdown文本
-                return self._send_markdown_text_only(report_data['text'])
-                
+                logging.warning("没有图片报表")
+                return False
+
         except Exception as e:
             logging.error(f"发送报表时出错: {e}")
             return False
@@ -539,7 +527,7 @@ class CallRecordingReporter:
         if not today_files:
             logging.info("没有找到当天的新文件")
             return
-            
+        
         logging.info(f"找到 {len(today_files)} 个当天的新文件: {today_files}")
         
         for filename in today_files:
@@ -554,7 +542,7 @@ class CallRecordingReporter:
                         
                 # 标记为已处理
                 self.processed_files.add(filename)
-                
+            
             except Exception as e:
                 logging.error(f"处理文件 {filename} 时出错: {e}")
                 
@@ -578,7 +566,11 @@ class CallRecordingReporter:
 
 def main():
     # 企业微信机器人webhook
-    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=2645bd5f-4802-45dc-8fd7-c46f67d317a9"
+    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=2645bd5f-4802-45dc-8fd7-c46f67d317a9"
+    #  听音统计表
+    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
+
+    
     
     # 创建报表处理器
     reporter = CallRecordingReporter(webhook_url)

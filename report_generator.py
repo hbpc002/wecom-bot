@@ -71,10 +71,10 @@ class ReportGenerator:
 
         # 添加汇总信息（使用markdown格式）
         summary_lines.append("## 📈 汇总信息")
-        summary_lines.append(f"- **总操作次数**: {total_operations}")
+        summary_lines.append(f"- **总听录音次数**: {total_operations}")
         summary_lines.append(f"- **参与人数**: {len(report_data)}")
         if len(report_data) > 0:
-            summary_lines.append(f"- **平均每人操作次数**: {total_operations/len(report_data):.1f}")
+            summary_lines.append(f"- **平均每人听录音次数**: {total_operations/len(report_data):.1f}")
         summary_lines.append("")  # 空行
         
         # 添加调试日志
@@ -86,7 +86,7 @@ class ReportGenerator:
         table_lines.append("")  # 空行
         
         # 添加表格头
-        table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 操作次数 |")
+        table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 听录音次数 |")
         # table_lines.append("|------|------|------|------|----------|")
         
         # 添加表格数据
@@ -128,10 +128,10 @@ class ReportGenerator:
             full_image_lines.append(f"📊 {report_date.strftime('%Y年%m月%d日')}听录音统计报表")
             full_image_lines.append("")  # 空行
             full_image_lines.append("## 📈 汇总信息")
-            full_image_lines.append(f"- **总操作次数**: {total_operations}")
+            full_image_lines.append(f"- **总听录音次数**: {total_operations}")
             full_image_lines.append(f"- **参与人数**: {len(report_data)}")
             if len(report_data) > 0:
-                full_image_lines.append(f"- **平均每人操作次数**: {total_operations/len(report_data):.1f}")
+                full_image_lines.append(f"- **平均每人听录音次数**: {total_operations/len(report_data):.1f}")
             full_image_lines.append("")  # 空行
             # Remove the extra line with hyphens
             full_image_lines.extend(table_lines[0:1] + table_lines[2:])  # 添加表格内容, skip index 1
@@ -228,7 +228,7 @@ class ReportGenerator:
                                 fill=(241, 245, 249))
                 draw.text((x_margin, y_pos), line.replace("## ", ""), fill=header_color, font=header_font)
                 y_pos += header_height + 5
-            elif line.startswith("- **总操作次数**") or line.startswith("- **参与人数**") or line.startswith("- **平均每人操作次数**"):
+            elif line.startswith("- **总听录音次数**") or line.startswith("- **参与人数**") or line.startswith("- **平均每人听录音次数**"):
                 # 汇总信息内容 - 去除markdown格式
                 clean_line = line.replace("- **", "").replace("**:", ":")
                 draw.text((x_margin, y_pos), clean_line, fill=text_color, font=normal_font)
