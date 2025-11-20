@@ -103,4 +103,21 @@ def test_detailed():
         traceback.print_exc()
 
 if __name__ == "__main__":
+    import main
+    main.main()
     test_detailed()
+
+    # 测试报表生成
+    from report_generator import ReportGenerator
+
+    # 构造测试数据
+    test_data = {
+        ('Team1', 'Name1', 'Account1'): 10,
+        ('Team2', 'Name2', 'Account2'): 5,
+        ('Team1', 'Name3', 'Account3'): 12,
+    }
+    
+    # 生成报表
+    report_date = datetime.now()
+    total_operations = sum(test_data.values())
+    ReportGenerator.generate_report(test_data, report_date, total_operations, 'test_detailed.py', 'file', output_format='both')

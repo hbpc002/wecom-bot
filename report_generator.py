@@ -12,8 +12,12 @@ except ImportError:
 class ReportGenerator:
     @staticmethod
     def generate_report(report_data, report_date, total_operations, filename, file_dir, output_format='both'):
+        logging.info("generate_report function called")
+        logging.info(f"report_data: {report_data}")
+        logging.info(f"report_date: {report_date}")
+        logging.info(f"total_operations: {total_operations}")
         """生成报表
-        
+
         Args:
             report_data: 报表数据
             report_date: 报表日期
@@ -83,7 +87,7 @@ class ReportGenerator:
         
         # 添加表格头
         table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 操作次数 |")
-        table_lines.append("|------|------|------|------|----------|")
+        # table_lines.append("|------|------|------|------|----------|")
         
         # 添加表格数据
         for i, member in enumerate(all_members_sorted, start=1):
@@ -110,7 +114,7 @@ class ReportGenerator:
             
             with open(text_path, 'w', encoding='utf-8') as f:
                 f.write("\n".join(summary_lines))
-                
+            
             logging.info(f"汇总信息已保存到: {text_path}")
             result['filename'] = text_filename
         
@@ -129,7 +133,8 @@ class ReportGenerator:
             if len(report_data) > 0:
                 full_image_lines.append(f"- **平均每人操作次数**: {total_operations/len(report_data):.1f}")
             full_image_lines.append("")  # 空行
-            full_image_lines.extend(table_lines)  # 添加表格内容
+            # Remove the extra line with hyphens
+            full_image_lines.extend(table_lines[0:1] + table_lines[2:])  # 添加表格内容, skip index 1
             
             ReportGenerator._generate_image_report(full_image_lines, image_path)
             logging.info(f"表格图片已保存到: {image_path}")
@@ -144,13 +149,14 @@ class ReportGenerator:
     @staticmethod
     def _generate_image_report(report_lines, output_path):
         """生成图片格式的报表"""
+        logging.info("Generating image report...")
         if not PIL_AVAILABLE:
             logging.error("PIL库未安装，无法生成图片格式报表")
             return
-            
+        logging.info("PIL is available.")
+        
         # 图片设置 - 调整尺寸以符合企业微信要求
         img_width = 800  # 增加宽度以提供更好的表格布局
-        img_height = 800  # 初始高度，会根据内容动态调整
         background_color = (255, 255, 255)  # 白色背景
         text_color = (33, 33, 33)  # 深灰色文字，更柔和
         header_color = (41, 98, 255)  # 现代蓝色标题
@@ -161,10 +167,7 @@ class ReportGenerator:
         border_color = (229, 231, 235)  # 浅灰色边框
         table_text_color = (64, 64, 64)  # 表格文字颜色
         
-        # 创建图片
-        img = Image.new('RGB', (img_width, img_height), background_color)
-        draw = ImageDraw.Draw(img)
-        
+        # 字体设置
         try:
             # 尝试使用中文字体
             font_path = "C:/Windows/Fonts/simhei.ttf"  # Windows系统黑体
@@ -194,20 +197,22 @@ class ReportGenerator:
         
         # 初始位置 - 增加边距以提供更好的布局
         x_margin = 40
-        y_pos = 30
+        y_pos = 30  # Initial y position
         
-        # 绘制标题
-        table_row_count = 0  # 用于计算表格行数，以便交替着色
+        # 创建一个足够大的图片，之后再resize
+        img_height = 1000  # 预估高度
+        img = Image.new('RGB', (img_width, img_height), background_color)
+        draw = ImageDraw.Draw(img)
         
-        # 创建表格数据
-        table_data = []
+        # 绘制文本
+        y_pos = 30  # Initial y position
+        table_row_count = 0
         in_table = False
-        
         for line in report_lines:
             if line.startswith("📊"):
                 # 主标题 - 添加背景色和圆角
-                draw.rectangle([x_margin-10, y_pos-5, img_width-x_margin+10, y_pos+title_height],
-                               fill=(240, 248, 255))
+                draw.rectangle([x_margin - 10, y_pos - 5, img_width - x_margin + 10, y_pos + title_height],
+                                fill=(240, 248, 255))
                 draw.text((x_margin, y_pos), line, fill=header_color, font=title_font)
                 y_pos += title_height + 10
             elif line.startswith("📅") or line.startswith("📁"):
@@ -220,7 +225,7 @@ class ReportGenerator:
             elif line.startswith("## 📈"):
                 # 汇总信息标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
-                               fill=(241, 245, 249))
+                                fill=(241, 245, 249))
                 draw.text((x_margin, y_pos), line.replace("## ", ""), fill=header_color, font=header_font)
                 y_pos += header_height + 5
             elif line.startswith("- **总操作次数**") or line.startswith("- **参与人数**") or line.startswith("- **平均每人操作次数**"):
@@ -231,108 +236,74 @@ class ReportGenerator:
             elif line.startswith("## 📋"):
                 # 表格标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
-                               fill=(241, 245, 249))
+                                fill=(241, 245, 249))
                 draw.text((x_margin, y_pos), line.replace("## ", ""), fill=header_color, font=header_font)
                 y_pos += header_height + 10
                 in_table = True
             elif in_table and line.startswith("| 排名"):
                 # 表头
-                table_data.append(('header', line))
+                table_header = line
+                header_cells = [cell.strip() for cell in table_header.split('|')[1:-1]]
+                
+                # 绘制表头背景
+                draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height + 5],
+                                fill=table_header_color)
+                
+                # 绘制表头文字
+                x_pos = x_margin + 10
+                col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
+                table_width = img_width - 2 * x_margin
+                for i, cell in enumerate(header_cells):
+                    if i < len(col_widths):
+                        draw.text((x_pos, y_pos + 5), cell, fill=(255, 255, 255), font=table_font)
+                        x_pos += int(table_width * col_widths[i])
+                y_pos += table_height + 5
             elif in_table and line.startswith("|"):
                 # 表格数据行
-                if not line.startswith("|------"):  # 跳过分隔线
-                    table_data.append(('data', line))
-        
-        # 绘制表格
-        if table_data:
-            # 计算表格列宽
-            table_width = img_width - 2 * x_margin
-            col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
-            
-            # 绘制表头
-            header_line = table_data[0][1]
-            header_cells = [cell.strip() for cell in header_line.split('|')[1:-1]]
-            
-            # 绘制表头背景
-            draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height + 5],
-                           fill=table_header_color)
-            
-            # 绘制表头文字
-            x_pos = x_margin + 10
-            for i, cell in enumerate(header_cells):
-                if i < len(col_widths):
-                    draw.text((x_pos, y_pos + 5), cell, fill=(255, 255, 255), font=table_font)
-                    x_pos += int(table_width * col_widths[i])
-            
-            y_pos += table_height + 5
-            
-            # 绘制表格数据行
-            for i in range(1, len(table_data)):
-                row_type, line = table_data[i]
                 cells = [cell.strip() for cell in line.split('|')[1:-1]]
                 
-                # 交替行背景色
-                if i % 2 == 0:
+                # 绘制行背景
+                if table_row_count % 2 == 0:
                     row_color = table_row_color1
                 else:
                     row_color = table_row_color2
-                
-                # 绘制行背景
                 draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height],
-                               fill=row_color)
-                
-                # 绘制行边框
-                draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height],
-                               outline=border_color, width=1)
-                
-                # 绘制单元格分隔线
-                x_pos = x_margin
-                for j in range(len(col_widths) - 1):
-                    x_pos += int(table_width * col_widths[j])
-                    draw.line([(x_pos, y_pos), (x_pos, y_pos + table_height)], fill=border_color, width=1)
+                                fill=row_color)
                 
                 # 绘制单元格文字
                 x_pos = x_margin + 10
-                for j, cell in enumerate(cells):
-                    if j < len(col_widths):
-                        # 第一行（排名1）使用高亮色
-                        if i == 1 and j == 0 and cell == "1":
-                            draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height],
-                                           fill=highlight_color)
-                            draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height],
-                                           outline=border_color, width=1)
-                            draw.text((x_pos, y_pos + 5), cell, fill=(255, 87, 34), font=table_font)
-                        else:
-                            draw.text((x_pos, y_pos + 5), cell, fill=table_text_color, font=table_font)
-                        x_pos += int(table_width * col_widths[j])
-                
+                col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
+                table_width = img_width - 2 * x_margin
+                for i, cell in enumerate(cells):
+                    if i < len(col_widths):
+                        draw.text((x_pos, y_pos + 5), cell, fill=table_text_color, font=table_font)
+                        x_pos += int(table_width * col_widths[i])
                 y_pos += table_height
-        
-        # 如果内容超出初始高度，调整图片大小
-        if y_pos + 50 > img_height:
-            new_height = y_pos + 100
-            # 限制最大高度，避免图片过大
-            if new_height > 1500:  # 进一步限制最大高度
-                new_height = 1500
-            new_img = Image.new('RGB', (img_width, new_height), background_color)
-            new_draw = ImageDraw.Draw(new_img)
-            new_img.paste(img)
-            img = new_img
-            draw = new_draw
+                table_row_count += 1
+            elif in_table and not line.startswith("|"):
+                in_table = False
+                
+        # 裁剪图片 - 使用最终的y_pos计算图片高度
+        img_height = y_pos + 50
+        img = img.crop((0, 0, img_width, img_height))
         
         # 确保图片尺寸符合企业微信要求
-        # 企业微信要求图片尺寸不超过 900x900 像素
-        if img.width > 900 or img.height > 900:
+        img_width, img_height = img.size
+        if img_width > 900 or img_height > 900:
             # 计算缩放比例
-            scale = min(900 / img.width, 900 / img.height)
-            new_width = int(img.width * scale)
-            new_height = int(img.height * scale)
+            scale = min(900 / img_width, 900 / img_height)
+            new_width = int(img_width * scale)
+            new_height = int(img_height * scale)
             img = img.resize((new_width, new_height), Image.LANCZOS)
         
         # 保存图片 - 使用PNG格式以保持清晰度
+        logging.info(f"Saving image to {output_path}")
         img.save(output_path, 'PNG')
+        logging.info(f"Image saved to {output_path}")
         
         # 同时保存一个JPEG版本用于发送
         if output_path.endswith('.png'):
             jpeg_path = output_path[:-4] + '.jpg'
+            logging.info(f"Saving JPEG version to {jpeg_path}")
             img.save(jpeg_path, 'JPEG', quality=95)
+            logging.info(f"JPEG version saved to {jpeg_path}")
