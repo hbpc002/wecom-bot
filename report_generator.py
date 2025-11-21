@@ -83,7 +83,7 @@ class ReportGenerator:
         # 生成表格数据
         table_lines = []
         table_lines.append("## 📋 详细数据")
-        table_lines.append("")  # 空行
+        # table_lines.append("")  # 空行
         
         # 添加表格头
         table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 听录音次数 |")
@@ -133,8 +133,8 @@ class ReportGenerator:
             if len(report_data) > 0:
                 full_image_lines.append(f"- **平均每人听录音次数**: {total_operations/len(report_data):.1f}")
             full_image_lines.append("")  # 空行
-            # Remove the extra line with hyphens
-            full_image_lines.extend(table_lines[0:1] + table_lines[2:])  # 添加表格内容, skip index 1
+            
+            full_image_lines.extend(table_lines)  # 添加表格内容
             
             ReportGenerator._generate_image_report(full_image_lines, image_path)
             logging.info(f"表格图片已保存到: {image_path}")
@@ -168,26 +168,41 @@ class ReportGenerator:
         table_text_color = (64, 64, 64)  # 表格文字颜色
         
         # 字体设置
-        try:
-            # 尝试使用中文字体
-            font_path = "C:/Windows/Fonts/simhei.ttf"  # Windows系统黑体
-            if os.path.exists(font_path):
-                title_font = ImageFont.truetype(font_path, 24)  # 增大标题字体
-                header_font = ImageFont.truetype(font_path, 18)
-                normal_font = ImageFont.truetype(font_path, 16)
-                table_font = ImageFont.truetype(font_path, 14)
-            else:
-                # 如果找不到中文字体，使用默认字体
-                title_font = ImageFont.load_default()
-                header_font = ImageFont.load_default()
-                normal_font = ImageFont.load_default()
-                table_font = ImageFont.load_default()
-        except:
-            # 字体加载失败，使用默认字体
-            title_font = ImageFont.load_default()
-            header_font = ImageFont.load_default()
-            normal_font = ImageFont.load_default()
-            table_font = ImageFont.load_default()
+        standard_font_path = "C:/Windows/Fonts/simhei.ttf"
+        emoji_font_path = "C:/Windows/Fonts/seguiemj.ttf"
+        
+        def load_font(path, size):
+            try:
+                if os.path.exists(path):
+                    return ImageFont.truetype(path, size)
+            except:
+                pass
+            return ImageFont.load_default()
+
+        # 加载字体
+        title_size = 24
+        header_size = 18
+        normal_size = 16
+        table_size = 14
+        
+        fonts = {
+            'title': {
+                'standard': load_font(standard_font_path, title_size),
+                'emoji': load_font(emoji_font_path, title_size)
+            },
+            'header': {
+                'standard': load_font(standard_font_path, header_size),
+                'emoji': load_font(emoji_font_path, header_size)
+            },
+            'normal': {
+                'standard': load_font(standard_font_path, normal_size),
+                'emoji': load_font(emoji_font_path, normal_size)
+            },
+            'table': {
+                'standard': load_font(standard_font_path, table_size),
+                'emoji': load_font(emoji_font_path, table_size)
+            }
+        }
         
         # 计算行高 - 增加行高以提高可读性
         title_height = 40
@@ -204,6 +219,39 @@ class ReportGenerator:
         img = Image.new('RGB', (img_width, img_height), background_color)
         draw = ImageDraw.Draw(img)
         
+        def is_emoji(char):
+            # 简单的Emoji判断范围，可能不完全覆盖所有Emoji
+            code = ord(char)
+            return (0x1F300 <= code <= 0x1F5FF or  # Misc Symbols and Pictographs
+                    0x1F900 <= code <= 0x1F9FF or  # Supplemental Symbols and Pictographs
+                    0x1F600 <= code <= 0x1F64F or  # Emoticons
+                    0x1F680 <= code <= 0x1F6FF or  # Transport and Map Symbols
+                    0x2600 <= code <= 0x26FF or    # Misc Symbols
+                    0x2700 <= code <= 0x27BF or    # Dingbats
+                    0xFE00 <= code <= 0xFE0F or    # Variation Selectors
+                    0x1F1E6 <= code <= 0x1F1FF)    # Flags
+
+        def draw_text_mixed(draw, xy, text, fill, font_type):
+            x, y = xy
+            current_fonts = fonts[font_type]
+            
+            for char in text:
+                if is_emoji(char):
+                    font = current_fonts['emoji']
+                    # Emoji字体通常需要特殊的处理，这里简单尝试直接绘制
+                    # 有些系统上Emoji字体可能包含颜色，PIL支持有限，这里作为普通文本绘制
+                else:
+                    font = current_fonts['standard']
+                
+                # 获取字符宽度
+                char_width = draw.textlength(char, font=font)
+                
+                # 绘制字符
+                draw.text((x, y), char, fill=fill, font=font)
+                
+                # 更新x坐标
+                x += char_width
+
         # 绘制文本
         y_pos = 30  # Initial y position
         table_row_count = 0
@@ -213,11 +261,11 @@ class ReportGenerator:
                 # 主标题 - 添加背景色和圆角
                 draw.rectangle([x_margin - 10, y_pos - 5, img_width - x_margin + 10, y_pos + title_height],
                                 fill=(240, 248, 255))
-                draw.text((x_margin, y_pos), line, fill=header_color, font=title_font)
+                draw_text_mixed(draw, (x_margin, y_pos), line, fill=header_color, font_type='title')
                 y_pos += title_height + 10
             elif line.startswith("📅") or line.startswith("📁"):
                 # 副标题
-                draw.text((x_margin, y_pos), line, fill=text_color, font=header_font)
+                draw_text_mixed(draw, (x_margin, y_pos), line, fill=text_color, font_type='header')
                 y_pos += header_height
             elif line == "":
                 # 空行
@@ -226,18 +274,18 @@ class ReportGenerator:
                 # 汇总信息标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
                                 fill=(241, 245, 249))
-                draw.text((x_margin, y_pos), line.replace("## ", ""), fill=header_color, font=header_font)
+                draw_text_mixed(draw, (x_margin, y_pos), line.replace("## ", ""), fill=header_color, font_type='header')
                 y_pos += header_height + 5
             elif line.startswith("- **总听录音次数**") or line.startswith("- **参与人数**") or line.startswith("- **平均每人听录音次数**"):
                 # 汇总信息内容 - 去除markdown格式
                 clean_line = line.replace("- **", "").replace("**:", ":")
-                draw.text((x_margin, y_pos), clean_line, fill=text_color, font=normal_font)
+                draw_text_mixed(draw, (x_margin, y_pos), clean_line, fill=text_color, font_type='normal')
                 y_pos += normal_height
             elif line.startswith("## 📋"):
                 # 表格标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
                                 fill=(241, 245, 249))
-                draw.text((x_margin, y_pos), line.replace("## ", ""), fill=header_color, font=header_font)
+                draw_text_mixed(draw, (x_margin, y_pos), line.replace("## ", ""), fill=header_color, font_type='header')
                 y_pos += header_height + 10
                 in_table = True
             elif in_table and line.startswith("| 排名"):
@@ -255,7 +303,7 @@ class ReportGenerator:
                 table_width = img_width - 2 * x_margin
                 for i, cell in enumerate(header_cells):
                     if i < len(col_widths):
-                        draw.text((x_pos, y_pos + 5), cell, fill=(255, 255, 255), font=table_font)
+                        draw_text_mixed(draw, (x_pos, y_pos + 5), cell, fill=(255, 255, 255), font_type='table')
                         x_pos += int(table_width * col_widths[i])
                 y_pos += table_height + 5
             elif in_table and line.startswith("|"):
@@ -276,7 +324,7 @@ class ReportGenerator:
                 table_width = img_width - 2 * x_margin
                 for i, cell in enumerate(cells):
                     if i < len(col_widths):
-                        draw.text((x_pos, y_pos + 5), cell, fill=table_text_color, font=table_font)
+                        draw_text_mixed(draw, (x_pos, y_pos + 5), cell, fill=table_text_color, font_type='table')
                         x_pos += int(table_width * col_widths[i])
                 y_pos += table_height
                 table_row_count += 1
