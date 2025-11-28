@@ -493,8 +493,8 @@ class CallRecordingReporter:
         self.process_daily_files()
 
 def main():
-    # 企业微信机器人webhook
-    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=2645bd5f-4802-45dc-8fd7-c46f67d317a9"
+    #  测试webhook
+    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
     #  听音统计表
     # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
 
