@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# 数据文件
+*.db
+*.log
+file/*.zip
+data/
+
+# 文档和测试
+*.md
+test_*.py
+debug.py
+
+# 图片（除了必要的）
+*.jpg
+*.png
+!table_*.jpg
+!table_*.png
+
+# 其他
+.DS_Store
+Thumbs.db
