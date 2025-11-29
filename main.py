@@ -178,6 +178,7 @@ class CallRecordingReporter:
                     report_data = {}
                     total_operations = 0
                     operation_dates = []  # 存储所有操作时间
+                    records_to_insert = []  # 存储待插入数据库的记录
                     
                     for row_num, row in enumerate(reader, start=2):  # 从第2行开始计数
                         try:
@@ -206,6 +207,13 @@ class CallRecordingReporter:
                                 # 收集操作时间
                                 if operation_time:
                                     operation_dates.append(operation_time)
+                                    records_to_insert.append({
+                                        'account': account,
+                                        'name': name,
+                                        'team': team,
+                                        'operation_time': operation_time,
+                                        'source_file': zip_filename
+                                    })
                                 
                         except Exception as e:
                             logging.warning(f"跳过第{row_num}行数据: {e}, 行内容: {row}")
@@ -216,14 +224,29 @@ class CallRecordingReporter:
                     if not report_date:
                         # 如果无法从操作时间提取，则回退到文件名提取
                         report_date = self.extract_date_from_filename(zip_filename)
+                    
+                    # 如果有数据库连接，保存数据到数据库
+                    if hasattr(self, 'db') and self.db and records_to_insert:
+                        try:
+                            logging.info(f"正在保存 {len(records_to_insert)} 条记录到数据库...")
+                            self.db.insert_batch_records(records_to_insert)
                             
+                            if report_date:
+                                logging.info(f"正在更新日汇总: {report_date}")
+                                self.db.update_daily_summary(report_date)
+                                
+                                year_month = report_date.strftime('%Y-%m')
+                                logging.info(f"正在更新月汇总: {year_month}")
+                                self.db.update_monthly_summary(year_month)
+                        except Exception as e:
+                            logging.error(f"保存数据到数据库失败: {e}")
+
                     return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                     
         except Exception as e:
             logging.error(f"处理文件 {zip_filename} 时出错: {e}")
             return None
             
-        
     def _calculate_md5(self, data):
         """计算数据的MD5值"""
         return hashlib.md5(data).hexdigest()
