@@ -353,11 +353,20 @@ def send_to_wecom():
         
         total_operations = sum(item['count'] for item in daily_data)
         
+        # 获取月累计数据
+        monthly_data = None
+        try:
+            year_month = target_date.strftime('%Y-%m')
+            monthly_summary = db.get_monthly_summary(year_month)
+            monthly_data = {item['account']: item['total_count'] for item in monthly_summary}
+        except Exception as e:
+            logging.error(f"获取月累计数据失败: {e}")
+        
         # 生成报表
         from report_generator import ReportGenerator
         result = ReportGenerator.generate_report(
             report_data, target_date, total_operations,
-            f"manual_{date_str}.zip", app.config['UPLOAD_FOLDER'], 'both'
+            f"manual_{date_str}.zip", app.config['UPLOAD_FOLDER'], 'both', monthly_data
         )
         
         # 发送到企业微信
