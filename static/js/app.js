@@ -262,7 +262,7 @@ function displayDailyReport(data) {
                     <th>团队</th>
                     <th>姓名</th>
                     <th>账号</th>
-                    <th>当日次数</th>
+                    <th>当日听录音次数</th>
                     <th>月累计</th>
                 </tr>
             </thead>
@@ -392,6 +392,7 @@ async function refreshFilesList() {
                             <th>文件名</th>
                             <th>大小</th>
                             <th>修改时间</th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -403,6 +404,9 @@ async function refreshFilesList() {
                         <td>${file.filename}</td>
                         <td>${formatFileSize(file.size)}</td>
                         <td>${file.modified}</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="deleteUploadedFile('${file.filename}')">删除</button>
+                        </td>
                     </tr>
                 `;
             });
@@ -419,6 +423,32 @@ async function refreshFilesList() {
     } catch (error) {
         console.error('获取文件列表失败:', error);
         filesTable.innerHTML = '<div class="empty-state">加载失败</div>';
+    }
+}
+
+// 删除已上传的文件
+async function deleteUploadedFile(filename) {
+    if (!confirm(`确定要删除文件 "${filename}" 吗？\n\n注意：删除后无法恢复！`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(data.message || '文件删除成功');
+            // 刷新文件列表
+            refreshFilesList();
+        } else {
+            alert('删除失败：' + (data.error || '未知错误'));
+        }
+    } catch (error) {
+        console.error('删除文件失败:', error);
+        alert('删除失败：' + error.message);
     }
 }
 

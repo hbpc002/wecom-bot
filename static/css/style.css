@@ -157,7 +157,7 @@ section h2 {
 }
 
 .btn-danger {
-    background: linear-gradient(135deg, var(--danger-color), #d50000);
+    background: linear-gradient(135deg, var(--danger-color), #44acf1);
     color: white;
 }
 
@@ -590,3 +590,7 @@ footer {
         padding: 10px;
     }
 }
+
+. b t n - s m       p a d d i n g :   6 p x   1 6 p x ;
+   f o n t - s i z e :   0 . 8 7 5 r e m ;
+       

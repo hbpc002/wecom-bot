@@ -93,7 +93,7 @@ class ReportGenerator:
         
         # 添加表格头（包含月累计列）
         if monthly_data:
-            table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 当日次数 | 月累计 |")
+            table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 当日听录音次数 | 月累计 |")
         else:
             table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 听录音次数 |")
         # table_lines.append("|------|------|------|------|----------|")
@@ -312,7 +312,7 @@ class ReportGenerator:
                 # 绘制表头文字
                 x_pos = x_margin + 10
                 if has_monthly:
-                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日次数、月累计
+                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
                 else:
                     col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
                 table_width = img_width - 2 * x_margin
@@ -336,7 +336,7 @@ class ReportGenerator:
                 # 绘制单元格文字
                 x_pos = x_margin + 10
                 if has_monthly:
-                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日次数、月累计
+                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
                 else:
                     col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
                 table_width = img_width - 2 * x_margin
