@@ -14,18 +14,11 @@ import logging
 from report_generator import ReportGenerator
 
 # 配置日志
-from logging.handlers import RotatingFileHandler
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        RotatingFileHandler(
-            'test_message.log',
-            encoding='utf-8',
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5  # 保留5个备份文件
-        )
+        logging.FileHandler('test_message.log', encoding='utf-8')
     ]
 )
 
@@ -393,33 +386,6 @@ class CallRecordingReporter:
             logging.error(f"上传图片时出错: {e}")
             return None
     
-    
-    def _cleanup_temp_image(self, image_path):
-        """清理临时图片文件（包括PNG和JPEG版本）
-        
-        Args:
-            image_path: 图片文件路径
-        """
-        try:
-            # 删除主图片文件
-            if os.path.exists(image_path):
-                os.remove(image_path)
-                logging.info(f"已删除临时图片: {os.path.basename(image_path)}")
-            
-            # 删除对应的JPEG/PNG副本
-            if image_path.endswith('.png'):
-                jpeg_path = image_path[:-4] + '.jpg'
-                if os.path.exists(jpeg_path):
-                    os.remove(jpeg_path)
-                    logging.info(f"已删除临时图片: {os.path.basename(jpeg_path)}")
-            elif image_path.endswith('.jpg') or image_path.endswith('.jpeg'):
-                png_path = image_path.rsplit('.', 1)[0] + '.png'
-                if os.path.exists(png_path):
-                    os.remove(png_path)
-                    logging.info(f"已删除临时图片: {os.path.basename(png_path)}")
-        except Exception as e:
-            logging.warning(f"清理临时图片失败: {e}")
-    
     def send_to_wechat(self, report_data):
         """发送报表到企业微信群，只发送图片"""
         if not report_data:
@@ -483,8 +449,6 @@ class CallRecordingReporter:
                                     result = response.json()
                                     if result.get('errcode') == 0:
                                         logging.info("图片报表发送成功")
-                                        # 发送成功后删除临时图片文件
-                                        self._cleanup_temp_image(image_path)
                                         return True
                                     else:
                                         logging.error(f"图片发送失败: {result}")

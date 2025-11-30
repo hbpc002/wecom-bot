@@ -9,9 +9,6 @@ from database import Database
 from main import CallRecordingReporter
 import json
 import socket
-import glob
-import zipfile
-from datetime import timedelta
 
 # Monkeypatch socket.getfqdn to avoid UnicodeDecodeError on Windows with non-ASCII hostnames
 def getfqdn(name=''):
@@ -81,62 +78,6 @@ def allowed_file(filename):
     """检查文件扩展名是否允许"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-def validate_zip_file(filepath):
-    """验证 ZIP 文件的有效性
-    
-    Args:
-        filepath: ZIP 文件路径
-        
-    Returns:
-        tuple: (是否有效, 错误信息)
-    """
-    try:
-        with zipfile.ZipFile(filepath, 'r') as zip_ref:
-            bad_file = zip_ref.testzip()
-            if bad_file:
-                return False, f"ZIP 文件损坏: {bad_file}"
-            
-            csv_files = [f for f in zip_ref.namelist() if f.endswith('.csv')]
-            if not csv_files:
-                return False, "ZIP 文件中没有 CSV 文件"
-            
-            return True, "验证通过"
-    except zipfile.BadZipFile:
-        return False, "不是有效的 ZIP 文件"
-    except Exception as e:
-        return False, f"验证失败: {str(e)}"
-
-def cleanup_old_files(file_dir='file', days_to_keep=30):
-    """清理超过指定天数的临时文件
-    
-    Args:
-        file_dir: 文件目录
-        days_to_keep: 保留天数
-    """
-    try:
-        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
-        cleaned_count = 0
-        
-        patterns = ['table_*.png', 'table_*.jpg', 'summary_*.txt']
-        for pattern in patterns:
-            for filepath in glob.glob(os.path.join(file_dir, pattern)):
-                try:
-                    file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
-                    if file_time < cutoff_date:
-                        os.remove(filepath)
-                        cleaned_count += 1
-                        logging.info(f"已删除旧文件: {os.path.basename(filepath)}")
-                except Exception as e:
-                    logging.warning(f"删除文件失败 {filepath}: {e}")
-        
-        if cleaned_count > 0:
-            logging.info(f"清理完成，删除了 {cleaned_count} 个文件（保留最近 {days_to_keep} 天）")
-        else:
-            logging.info(f"无需清理，所有文件都在 {days_to_keep} 天内")
-    except Exception as e:
-        logging.error(f"清理文件失败: {e}")
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """登录页面和处理"""
@@ -200,18 +141,6 @@ def upload_files():
                 # 保存文件
                 file.save(filepath)
                 logging.info(f"文件已保存: {filepath}")
-                
-                # 验证 ZIP 文件
-                is_valid, validation_message = validate_zip_file(filepath)
-                if not is_valid:
-                    os.remove(filepath)  # 删除无效文件
-                    logging.warning(f"文件验证失败: {filename} - {validation_message}")
-                    results.append({
-                        'filename': filename,
-                        'success': False,
-                        'message': f'文件验证失败：{validation_message}'
-                    })
-                    continue
                 
                 # 处理文件
                 try:
@@ -497,10 +426,6 @@ if __name__ == '__main__':
     logging.info("启动Web服务器...")
     logging.info(f"数据库路径: {app.config['DATABASE_PATH']}")
     logging.info(f"上传目录: {app.config['UPLOAD_FOLDER']}")
-    
-    # 清理旧的临时文件
-    logging.info("清理旧的临时文件...")
-    cleanup_old_files(app.config['UPLOAD_FOLDER'], days_to_keep=30)
     
     # 启动Flask应用
     app.run(host='0.0.0.0', port=5000, debug=False)
