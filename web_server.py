@@ -45,7 +45,7 @@ WEBHOOK_PROD = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45
 
 # 定时任务配置
 scheduled_task_enabled = False
-scheduled_task_time = "09:00"
+scheduled_task_time = "10:00"
 
 # 用户类
 class User(UserMixin):
@@ -399,11 +399,18 @@ def send_to_wecom():
         date_str = data.get('date')
         env = data.get('env', 'test')  # test 或 prod
         
+        logging.info(f"收到发送请求 - 日期: {date_str}, 环境: {env}")
+        
+
         if not date_str:
             return jsonify({'success': False, 'error': '请选择日期'}), 400
         
         # 选择webhook
         webhook_url = WEBHOOK_TEST if env == 'test' else WEBHOOK_PROD
+        # 记录使用的webhook (隐藏部分key)
+        masked_url = webhook_url[:60] + '...' if len(webhook_url) > 60 else webhook_url
+        logging.info(f"环境: {env}, 使用webhook: {masked_url}")
+        logging.info(f"准备发送到{'生产' if env == 'prod' else '测试'}环境")
         
         # 创建报表处理器
         reporter = CallRecordingReporter(webhook_url, app.config['UPLOAD_FOLDER'])
@@ -443,11 +450,13 @@ def send_to_wecom():
         # 发送到企业微信
         if reporter.send_to_wechat(result):
             env_name = '测试环境' if env == 'test' else '生产环境'
+            logging.info(f"✓ 报表成功发送到{env_name} (webhook: {masked_url})")
             return jsonify({
                 'success': True,
                 'message': f'报表已成功发送到{env_name}'
             })
         else:
+            logging.error(f"✗ 报表发送失败 - 环境: {env_name}")
             return jsonify({'success': False, 'error': '发送失败'}), 500
             
     except Exception as e:
@@ -473,7 +482,7 @@ def update_schedule():
     try:
         data = request.get_json()
         scheduled_task_enabled = data.get('enabled', False)
-        scheduled_task_time = data.get('time', '09:00')
+        scheduled_task_time = data.get('time', '10:00')
         
         # TODO: 这里可以实际启动或停止定时任务
         # 使用schedule库或APScheduler

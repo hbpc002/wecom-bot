@@ -468,9 +468,6 @@ document.getElementById('sendTestBtn').addEventListener('click', async () => {
 
 // 发送到企业微信 - 生产环境
 document.getElementById('sendProdBtn').addEventListener('click', async () => {
-    if (!confirm('确定要发送到生产环境吗？')) {
-        return;
-    }
     await sendToWecom('prod');
 });
 
@@ -479,14 +476,26 @@ async function sendToWecom(env) {
     const date = dateInput.value;
 
     if (!date) {
-        alert('请选择日期');
+        alert('❌ 请先选择日期');
         return;
     }
 
+    const envName = env === 'test' ? '测试环境' : '生产环境';
+    
+    // 开始前确认（生产环境）
+    if (env === 'prod') {
+        if (!confirm(`⚠️ 确定要发送到生产环境吗？\n\n日期: ${date}\n环境: ${envName}`)) {
+            console.log('用户取消了发送到生产环境');
+            return;
+        }
+    }
+    
     const btn = env === 'test' ? document.getElementById('sendTestBtn') : document.getElementById('sendProdBtn');
     const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span>⏳</span> 发送中...';
+    
+    console.log(`开始发送到${envName}，日期: ${date}`);
 
     try {
         const response = await fetch('/api/send-to-wecom', {
@@ -497,19 +506,24 @@ async function sendToWecom(env) {
             body: JSON.stringify({ date, env })
         });
 
+        console.log('收到响应:', response.status);
         const data = await response.json();
+        console.log('响应数据:', data);
 
         if (data.success) {
-            alert(data.message);
+            alert(`✅ ${data.message}`);
+            console.log('发送成功:', data.message);
         } else {
-            alert('发送失败：' + data.error);
+            alert(`❌ 发送失败：${data.error}`);
+            console.error('发送失败:', data.error);
         }
     } catch (error) {
-        console.error('发送失败:', error);
-        alert('发送失败：' + error.message);
+        console.error('发送异常:', error);
+        alert(`❌ 发送失败：${error.message}\n\n请检查网络连接或查看控制台了解详情`);
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
+        console.log('发送操作结束');
     }
 }
 

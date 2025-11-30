@@ -422,6 +422,10 @@ class CallRecordingReporter:
     
     def send_to_wechat(self, report_data):
         """发送报表到企业微信群，只发送图片"""
+        # 记录使用的webhook (隐藏部分key以保护安全)
+        masked_webhook = self.webhook_url[:60] + '...' if len(self.webhook_url) > 60 else self.webhook_url
+        logging.info(f"send_to_wechat 使用webhook: {masked_webhook}")
+        
         if not report_data:
             logging.warning("没有报表数据可发送")
             return False
@@ -482,7 +486,7 @@ class CallRecordingReporter:
                                 if response.status_code == 200:
                                     result = response.json()
                                     if result.get('errcode') == 0:
-                                        logging.info("图片报表发送成功")
+                                        logging.info(f"图片报表发送成功 -> {masked_webhook}")
                                         # 发送成功后删除临时图片文件
                                         self._cleanup_temp_image(image_path)
                                         return True
@@ -553,9 +557,9 @@ class CallRecordingReporter:
 
 def main():
     #  测试webhook
-    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
+    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
     #  听音统计表
-    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
+    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
 
     
     
