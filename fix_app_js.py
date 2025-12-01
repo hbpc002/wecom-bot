@@ -1,4 +1,23 @@
-// 全局变量
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+修复 app.js 文件中的 sendToWecom 函数
+"""
+
+import os
+import shutil
+from datetime import datetime
+
+# 文件路径
+APP_JS_PATH = r'd:\Documents\G-ide\wecom-bot\static\js\app.js'
+
+# 备份文件
+backup_path = APP_JS_PATH + f'.backup.{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+shutil.copy2(APP_JS_PATH, backup_path)
+print(f"✓ 已备份原文件到: {backup_path}")
+
+# 完整的正确的 app.js 内容
+CORRECT_APP_JS = r"""// 全局变量
 let selectedFiles = [];
 
 // DOM元素
@@ -461,36 +480,6 @@ function formatFileSize(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-// 显示通知消息
-function showNotification(message, type = 'info') {
-    // 移除已存在的通知
-    const existingNotification = document.querySelector('.custom-notification');
-    if (existingNotification) {
-        existingNotification.remove();
-    }
-
-    // 创建通知元素
-    const notification = document.createElement('div');
-    notification.className = `custom-notification ${type}`;
-    notification.innerHTML = `
-        <div class="notification-content">
-            <span class="notification-message">${message}</span>
-            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
-        </div>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // 5秒后自动消失
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.classList.add('fade-out');
-            setTimeout(() => notification.remove(), 300);
-        }
-    }, 5000);
-}
-
-
 // 发送到企业微信 - 测试环境
 document.getElementById('sendTestBtn').addEventListener('click', async () => {
     await sendToWecom('test');
@@ -506,11 +495,28 @@ async function sendToWecom(env) {
     const date = dateInput.value;
 
     if (!date) {
-        showNotification('请先选择日期', 'error');
+        alert('❌ 请先选择日期');
         return;
     }
 
     const envName = env === 'test' ? '测试环境' : '生产环境';
+    
+    // 开始前确认(生产环境)
+    if (env === 'prod') {
+        const confirmed = confirm(
+            `⚠️ 确认发送到生产环境？\n\n` +
+            `📅 日期: ${date}\n` +
+            `🎯 环境: ${envName}\n\n` +
+            `点击【确定】发送，点击【取消】放弃发送`
+        );
+        
+        if (!confirmed) {
+            console.log('❌ 用户取消了发送到生产环境');
+            alert('ℹ️ 已取消发送操作');
+            return;
+        }
+        console.log('✅ 用户确认发送到生产环境');
+    }
     
     const btn = env === 'test' ? document.getElementById('sendTestBtn') : document.getElementById('sendProdBtn');
     const originalText = btn.innerHTML;
@@ -533,15 +539,15 @@ async function sendToWecom(env) {
         console.log('响应数据:', data);
 
         if (data.success) {
-            showNotification(`✅ ${data.message}`, 'success');
+            alert(`✅ ${data.message}`);
             console.log('发送成功:', data.message);
         } else {
-            showNotification(`❌ 发送失败：${data.error}`, 'error');
+            alert(`❌ 发送失败：${data.error}`);
             console.error('发送失败:', data.error);
         }
     } catch (error) {
         console.error('发送异常:', error);
-        showNotification(`❌ 发送失败：${error.message}`, 'error');
+        alert(`❌ 发送失败：${error.message}\n\n请检查网络连接或查看控制台了解详情`);
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -602,3 +608,18 @@ window.addEventListener('load', () => {
     refreshFilesList();
     loadScheduleStatus();
 });
+"""
+
+# 写入正确的内容
+with open(APP_JS_PATH, 'w', encoding='utf-8') as f:
+    f.write(CORRECT_APP_JS)
+
+print(f"✓ 已修复 app.js 文件")
+print(f"\n主要修改:")
+print("  1. 恢复了完整的 sendToWecom 函数")
+print("  2. 优化了生产环境发送确认对话框")
+print("  3. 添加了更清晰的提示信息")
+print("\n说明:")
+print("  - 测试环境：直接发送，无需确认")
+print("  - 生产环境：需要点击【确定】才会发送")
+print("  - 如果点击【取消】，会显示'已取消发送操作'提示")

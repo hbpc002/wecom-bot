@@ -461,36 +461,6 @@ function formatFileSize(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-// 显示通知消息
-function showNotification(message, type = 'info') {
-    // 移除已存在的通知
-    const existingNotification = document.querySelector('.custom-notification');
-    if (existingNotification) {
-        existingNotification.remove();
-    }
-
-    // 创建通知元素
-    const notification = document.createElement('div');
-    notification.className = `custom-notification ${type}`;
-    notification.innerHTML = `
-        <div class="notification-content">
-            <span class="notification-message">${message}</span>
-            <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
-        </div>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // 5秒后自动消失
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.classList.add('fade-out');
-            setTimeout(() => notification.remove(), 300);
-        }
-    }, 5000);
-}
-
-
 // 发送到企业微信 - 测试环境
 document.getElementById('sendTestBtn').addEventListener('click', async () => {
     await sendToWecom('test');
@@ -502,79 +472,24 @@ document.getElementById('sendProdBtn').addEventListener('click', async () => {
 });
 
 async function sendToWecom(env) {
-    const dateInput = document.getElementById('wecomDate');
-    const date = dateInput.value;
-
-    if (!date) {
-        showNotification('请先选择日期', 'error');
-        return;
-    }
-
-    const envName = env === 'test' ? '测试环境' : '生产环境';
-    
-    const btn = env === 'test' ? document.getElementById('sendTestBtn') : document.getElementById('sendProdBtn');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> 发送中...';
-    
-    console.log(`开始发送到${envName}，日期: ${date}`);
-
-    try {
-        const response = await fetch('/api/send-to-wecom', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ date, env })
-        });
-
-        console.log('收到响应:', response.status);
-        const data = await response.json();
-        console.log('响应数据:', data);
-
-        if (data.success) {
-            showNotification(`✅ ${data.message}`, 'success');
-            console.log('发送成功:', data.message);
-        } else {
-            showNotification(`❌ 发送失败：${data.error}`, 'error');
-            console.error('发送失败:', data.error);
-        }
-    } catch (error) {
-        console.error('发送异常:', error);
-        showNotification(`❌ 发送失败：${error.message}`, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        console.log('发送操作结束');
-    }
-}
-
-// 保存定时任务设置
-document.getElementById('saveScheduleBtn').addEventListener('click', async () => {
-    const enabled = document.getElementById('scheduleEnabled').checked;
-    const time = document.getElementById('scheduleTime').value;
-
-    try {
-        const response = await fetch('/api/schedule/update', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ enabled, time })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            alert('定时任务设置已保存');
-        } else {
-            alert('保存失败：' + data.error);
-        }
-    } catch (error) {
-        console.error('保存失败:', error);
-        alert('保存失败：' + error.message);
-    }
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ enabled, time })
 });
+
+const data = await response.json();
+
+if (data.success) {
+    alert('定时任务设置已保存');
+} else {
+    alert('保存失败：' + data.error);
+}
+        } catch (error) {
+    console.error('保存失败:', error);
+    alert('保存失败：' + error.message);
+}
+    });
 
 // 加载定时任务状态
 async function loadScheduleStatus() {
