@@ -71,8 +71,8 @@ os.makedirs('templates', exist_ok=True)
 os.makedirs('static/css', exist_ok=True)
 os.makedirs('static/js', exist_ok=True)
 
-# 初始化数据库
-db = Database(app.config['DATABASE_PATH'])
+# 数据库路径（使用临时连接而非全局实例，避免锁定问题）
+# db = Database(app.config['DATABASE_PATH'])  # 已移除全局实例，改用临时连接
 
 # 允许的文件扩展名
 ALLOWED_EXTENSIONS = {'zip'}
@@ -188,75 +188,76 @@ def upload_files():
         results = []
         webhook_url = request.form.get('webhook_url', '')
         
-        # 创建报表处理器
+        # 创建报表处理器，使用临时数据库连接
         reporter = CallRecordingReporter(webhook_url if webhook_url else None, app.config['UPLOAD_FOLDER'])
-        reporter.db = db  # 注入数据库实例
+        with Database(app.config['DATABASE_PATH']) as db:
+            reporter.db = db  # 注入临时数据库实例
         
-        for file in files:
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                
-                # 保存文件
-                file.save(filepath)
-                logging.info(f"文件已保存: {filepath}")
-                
-                # 验证 ZIP 文件
-                is_valid, validation_message = validate_zip_file(filepath)
-                if not is_valid:
-                    os.remove(filepath)  # 删除无效文件
-                    logging.warning(f"文件验证失败: {filename} - {validation_message}")
-                    results.append({
-                        'filename': filename,
-                        'success': False,
-                        'message': f'文件验证失败：{validation_message}'
-                    })
-                    continue
-                
-                # 处理文件
-                try:
-                    report_data = reporter.process_zip_file(filename)
+            for file in files:
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                     
-                    if report_data:
-                        results.append({
-                            'filename': filename,
-                            'success': True,
-                            'message': '处理成功',
-                            'data': {
-                                'date': str(report_data.get('date', '')),
-                                'total_operations': report_data.get('total_operations', 0),
-                                'people': report_data.get('people', 0)
-                            }
-                        })
-                    else:
+                    # 保存文件
+                    file.save(filepath)
+                    logging.info(f"文件已保存: {filepath}")
+                    
+                    # 验证 ZIP 文件
+                    is_valid, validation_message = validate_zip_file(filepath)
+                    if not is_valid:
+                        os.remove(filepath)  # 删除无效文件
+                        logging.warning(f"文件验证失败: {filename} - {validation_message}")
                         results.append({
                             'filename': filename,
                             'success': False,
-                            'message': '处理失败：无法生成报表'
+                            'message': f'文件验证失败：{validation_message}'
                         })
+                        continue
+                    
+                    # 处理文件
+                    try:
+                        report_data = reporter.process_zip_file(filename)
                         
-                except Exception as e:
-                    logging.error(f"处理文件 {filename} 时出错: {e}")
+                        if report_data:
+                            results.append({
+                                'filename': filename,
+                                'success': True,
+                                'message': '处理成功',
+                                'data': {
+                                    'date': str(report_data.get('date', '')),
+                                    'total_operations': report_data.get('total_operations', 0),
+                                    'people': report_data.get('people', 0)
+                                }
+                            })
+                        else:
+                            results.append({
+                                'filename': filename,
+                                'success': False,
+                                'message': '处理失败：无法生成报表'
+                            })
+                            
+                    except Exception as e:
+                        logging.error(f"处理文件 {filename} 时出错: {e}")
+                        results.append({
+                            'filename': filename,
+                            'success': False,
+                            'message': f'处理失败：{str(e)}'
+                        })
+                else:
                     results.append({
-                        'filename': filename,
+                        'filename': file.filename,
                         'success': False,
-                        'message': f'处理失败：{str(e)}'
+                        'message': '不支持的文件格式，只允许.zip文件'
                     })
-            else:
-                results.append({
-                    'filename': file.filename,
-                    'success': False,
-                    'message': '不支持的文件格式，只允许.zip文件'
-                })
-        
-        # 统计成功和失败数量
-        success_count = sum(1 for r in results if r['success'])
-        
-        return jsonify({
-            'success': True,
-            'message': f'上传完成：{success_count}/{len(results)} 个文件处理成功',
-            'results': results
-        })
+            
+            # 统计成功和失败数量
+            success_count = sum(1 for r in results if r['success'])
+            
+            return jsonify({
+                'success': True,
+                'message': f'上传完成：{success_count}/{len(results)} 个文件处理成功',
+                'results': results
+            })
         
     except Exception as e:
         logging.error(f"上传处理失败: {e}")
@@ -270,25 +271,26 @@ def get_daily_report(date_str):
         # 解析日期
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
-        # 获取数据（包含月累计）
-        data = db.get_daily_with_monthly(target_date)
+        # 使用临时数据库连接获取数据（包含月累计）
+        with Database(app.config['DATABASE_PATH']) as db:
+            data = db.get_daily_with_monthly(target_date)
         
-        if not data:
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'message': '没有找到该日期的数据'
+                }), 404
+            
+            # 计算汇总信息
+            total_operations = sum(item['daily_count'] for item in data)
+            
             return jsonify({
-                'success': False,
-                'message': '没有找到该日期的数据'
-            }), 404
-        
-        # 计算汇总信息
-        total_operations = sum(item['daily_count'] for item in data)
-        
-        return jsonify({
-            'success': True,
-            'date': date_str,
-            'total_operations': total_operations,
-            'people_count': len(data),
-            'data': data
-        })
+                'success': True,
+                'date': date_str,
+                'total_operations': total_operations,
+                'people_count': len(data),
+                'data': data
+            })
         
     except ValueError:
         return jsonify({'success': False, 'error': '日期格式错误，应为 YYYY-MM-DD'}), 400
@@ -304,25 +306,26 @@ def get_monthly_report(year_month):
         # 验证格式
         datetime.strptime(year_month, '%Y-%m')
         
-        # 获取数据
-        data = db.get_monthly_summary(year_month)
-        
-        if not data:
+        # 使用临时数据库连接获取数据
+        with Database(app.config['DATABASE_PATH']) as db:
+            data = db.get_monthly_summary(year_month)
+            
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'message': '没有找到该月份的数据'
+                }), 404
+            
+            # 计算汇总信息
+            total_operations = sum(item['total_count'] for item in data)
+            
             return jsonify({
-                'success': False,
-                'message': '没有找到该月份的数据'
-            }), 404
-        
-        # 计算汇总信息
-        total_operations = sum(item['total_count'] for item in data)
-        
-        return jsonify({
-            'success': True,
-            'year_month': year_month,
-            'total_operations': total_operations,
-            'people_count': len(data),
-            'data': data
-        })
+                'success': True,
+                'year_month': year_month,
+                'total_operations': total_operations,
+                'people_count': len(data),
+                'data': data
+            })
         
     except ValueError:
         return jsonify({'success': False, 'error': '月份格式错误，应为 YYYY-MM'}), 400
@@ -412,52 +415,55 @@ def send_to_wecom():
         logging.info(f"环境: {env}, 使用webhook: {masked_url}")
         logging.info(f"准备发送到{'生产' if env == 'prod' else '测试'}环境")
         
-        # 创建报表处理器
-        reporter = CallRecordingReporter(webhook_url, app.config['UPLOAD_FOLDER'])
-        reporter.db = db
+        # 使用临时数据库连接
+        with Database(app.config['DATABASE_PATH']) as db:
+            # 创建报表处理器
+            reporter = CallRecordingReporter(webhook_url, app.config['UPLOAD_FOLDER'])
+            reporter.db = db
+            
+            # 获取指定日期的数据
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            daily_data = db.get_daily_summary(target_date)
+            
+            if not daily_data:
+                return jsonify({'success': False, 'error': '该日期没有数据'}), 404
+            
+            # 构造报表数据格式
+            report_data = {}
+            for item in daily_data:
+                key = (item['team'], item['name'], item['account'])
+                report_data[key] = item['count']
+            
+            total_operations = sum(item['count'] for item in daily_data)
+            
+            # 获取月累计数据
+            monthly_data = None
+            try:
+                year_month = target_date.strftime('%Y-%m')
+                monthly_summary = db.get_monthly_summary(year_month)
+                monthly_data = {item['account']: item['total_count'] for item in monthly_summary}
+            except Exception as e:
+                logging.error(f"获取月累计数据失败: {e}")
+            
+            # 生成报表
+            from report_generator import ReportGenerator
+            result = ReportGenerator.generate_report(
+                report_data, target_date, total_operations,
+                f"manual_{date_str}.zip", app.config['UPLOAD_FOLDER'], 'both', monthly_data
+            )
         
-        # 获取指定日期的数据
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        daily_data = db.get_daily_summary(target_date)
-        
-        if not daily_data:
-            return jsonify({'success': False, 'error': '该日期没有数据'}), 404
-        
-        # 构造报表数据格式
-        report_data = {}
-        for item in daily_data:
-            key = (item['team'], item['name'], item['account'])
-            report_data[key] = item['count']
-        
-        total_operations = sum(item['count'] for item in daily_data)
-        
-        # 获取月累计数据
-        monthly_data = None
-        try:
-            year_month = target_date.strftime('%Y-%m')
-            monthly_summary = db.get_monthly_summary(year_month)
-            monthly_data = {item['account']: item['total_count'] for item in monthly_summary}
-        except Exception as e:
-            logging.error(f"获取月累计数据失败: {e}")
-        
-        # 生成报表
-        from report_generator import ReportGenerator
-        result = ReportGenerator.generate_report(
-            report_data, target_date, total_operations,
-            f"manual_{date_str}.zip", app.config['UPLOAD_FOLDER'], 'both', monthly_data
-        )
-        
-        # 发送到企业微信
-        if reporter.send_to_wechat(result):
-            env_name = '测试环境' if env == 'test' else '生产环境'
-            logging.info(f"✓ 报表成功发送到{env_name} (webhook: {masked_url})")
-            return jsonify({
-                'success': True,
-                'message': f'报表已成功发送到{env_name}'
-            })
-        else:
-            logging.error(f"✗ 报表发送失败 - 环境: {env_name}")
-            return jsonify({'success': False, 'error': '发送失败'}), 500
+            # 发送到企业微信
+            if reporter.send_to_wechat(result):
+                env_name = '测试环境' if env == 'test' else '生产环境'
+                logging.info(f"✓ 报表成功发送到{env_name} (webhook: {masked_url})")
+                return jsonify({
+                    'success': True,
+                    'message': f'报表已成功发送到{env_name}'
+                })
+            else:
+                env_name = '测试环境' if env == 'test' else '生产环境'
+                logging.error(f"✗ 报表发送失败 - 环境: {env_name}")
+                return jsonify({'success': False, 'error': '发送失败'}), 500
             
     except Exception as e:
         logging.error(f"发送到企业微信失败: {e}")
@@ -502,11 +508,12 @@ def update_schedule():
 def get_team_leaders():
     """获取所有团队组长"""
     try:
-        leaders = db.get_all_team_leaders()
-        return jsonify({
-            'success': True,
-            'data': leaders
-        })
+        with Database(app.config['DATABASE_PATH']) as db:
+            leaders = db.get_all_team_leaders()
+            return jsonify({
+                'success': True,
+                'data': leaders
+            })
     except Exception as e:
         logging.error(f"获取团队组长列表失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -524,15 +531,16 @@ def create_team_leader():
         if not team_name or not account_id or not name:
             return jsonify({'success': False, 'error': '所有字段都是必填的'}), 400
         
-        success = db.add_team_leader(team_name, account_id, name)
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': '添加成功'
-            })
-        else:
-            return jsonify({'success': False, 'error': '添加失败，账号可能已存在'}), 400
+        with Database(app.config['DATABASE_PATH']) as db:
+            success = db.add_team_leader(team_name, account_id, name)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': '添加成功'
+                })
+            else:
+                return jsonify({'success': False, 'error': '添加失败，账号可能已存在'}), 400
             
     except Exception as e:
         logging.error(f"添加团队组长失败: {e}")
@@ -551,15 +559,16 @@ def update_team_leader(leader_id):
         if not team_name or not account_id or not name:
             return jsonify({'success': False, 'error': '所有字段都是必填的'}), 400
         
-        success = db.update_team_leader(leader_id, team_name, account_id, name)
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': '更新成功'
-            })
-        else:
-            return jsonify({'success': False, 'error': '更新失败，组长不存在或账号已被使用'}), 400
+        with Database(app.config['DATABASE_PATH']) as db:
+            success = db.update_team_leader(leader_id, team_name, account_id, name)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': '更新成功'
+                })
+            else:
+                return jsonify({'success': False, 'error': '更新失败，组长不存在或账号已被使用'}), 400
             
     except Exception as e:
         logging.error(f"更新团队组长失败: {e}")
@@ -570,15 +579,16 @@ def update_team_leader(leader_id):
 def delete_team_leader(leader_id):
     """删除团队组长"""
     try:
-        success = db.delete_team_leader(leader_id)
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': '删除成功'
-            })
-        else:
-            return jsonify({'success': False, 'error': '删除失败，组长不存在'}), 404
+        with Database(app.config['DATABASE_PATH']) as db:
+            success = db.delete_team_leader(leader_id)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': '删除成功'
+                })
+            else:
+                return jsonify({'success': False, 'error': '删除失败，组长不存在'}), 404
             
     except Exception as e:
         logging.error(f"删除团队组长失败: {e}")

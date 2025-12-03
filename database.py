@@ -20,8 +20,15 @@ class Database:
     def init_database(self):
         """初始化数据库，创建必要的表"""
         try:
-            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10.0)
             self.conn.row_factory = sqlite3.Row  # 允许通过列名访问
+            
+            # 启用 WAL (Write-Ahead Logging) 模式以改善并发性能
+            self.conn.execute('PRAGMA journal_mode=WAL')
+            # 增加繁忙超时时间到10秒
+            self.conn.execute('PRAGMA busy_timeout=10000')
+            
+            logging.info(f"数据库连接已建立，启用 WAL 模式: {self.db_path}")
             cursor = self.conn.cursor()
             
             # 创建听录音记录表
