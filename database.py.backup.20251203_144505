@@ -449,48 +449,8 @@ class Database:
                 VALUES (?, ?, ?)
             ''', (team_name, account_id, name))
             
-            # 更新历史数据中该账号的团队名称和姓名
-            cursor.execute('''
-                UPDATE daily_summary
-                SET team = ?, name = ?
-                WHERE account = ?
-            ''', (team_name, name, account_id))
-            daily_updated = cursor.rowcount
-            
-            cursor.execute('''
-                UPDATE listening_records
-                SET team = ?, name = ?
-                WHERE account = ?
-            ''', (team_name, name, account_id))
-            records_updated = cursor.rowcount
-            
-            # 获取该账号的所有相关年月，重新计算月汇总
-            cursor.execute('''
-                SELECT DISTINCT strftime('%Y-%m', date) as year_month
-                FROM daily_summary
-                WHERE account = ?
-            ''', (account_id,))
-            
-            year_months = [row[0] for row in cursor.fetchall()]
-            
-            # 重新计算影响的月份的月汇总
-            for year_month in year_months:
-                if year_month:  # 确保不是空值
-                    cursor.execute('DELETE FROM monthly_summary WHERE year_month = ? AND account = ?', 
-                                 (year_month, account_id))
-                    
-                    cursor.execute('''
-                        INSERT INTO monthly_summary (year_month, account, name, team, total_count, updated_at)
-                        SELECT ?, account, ?, ?, SUM(count) as total_count, CURRENT_TIMESTAMP
-                        FROM daily_summary
-                        WHERE account = ? AND strftime('%Y-%m', date) = ?
-                        GROUP BY account
-                    ''', (year_month, name, team_name, account_id, year_month))
-            
             self.conn.commit()
             logging.info(f"添加团队组长成功: {team_name} - {name} ({account_id})")
-            if daily_updated > 0 or records_updated > 0:
-                logging.info(f"已更新历史数据: daily_summary={daily_updated}条, listening_records={records_updated}条, 月汇总={len(year_months)}个月")
             return True
             
         except Exception as e:
