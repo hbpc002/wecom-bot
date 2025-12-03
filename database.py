@@ -75,6 +75,22 @@ class Database:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_daily_date ON daily_summary(date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_monthly_year_month ON monthly_summary(year_month)')
             
+            # 创建团队组长映射表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS team_leaders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_name TEXT NOT NULL,
+                    account_id TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # 创建索引
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_team_name ON team_leaders(team_name)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_account_id ON team_leaders(account_id)')
+            
             self.conn.commit()
             logging.info(f"数据库初始化成功: {self.db_path}")
             
@@ -237,7 +253,7 @@ class Database:
             return False
     
     def get_daily_summary(self, target_date: date) -> List[Dict]:
-        """获取指定日期的汇总数据
+        """获取指定日期的汇总数据（只显示当前存在的组长）
         
         Args:
             target_date: 目标日期
@@ -247,11 +263,13 @@ class Database:
         """
         try:
             cursor = self.conn.cursor()
+            # 只返回在 team_leaders 表中存在的组长数据，并使用 team_leaders 表中的最新团队名称和姓名
             cursor.execute('''
-                SELECT account, name, team, count
-                FROM daily_summary
-                WHERE date = ?
-                ORDER BY count DESC
+                SELECT t.account_id as account, t.name, t.team_name as team, d.count
+                FROM daily_summary d
+                INNER JOIN team_leaders t ON d.account = t.account_id
+                WHERE d.date = ?
+                ORDER BY d.count DESC
             ''', (target_date,))
             
             results = []
@@ -270,7 +288,7 @@ class Database:
             return []
     
     def get_monthly_summary(self, year_month: str) -> List[Dict]:
-        """获取指定月份的汇总数据
+        """获取指定月份的汇总数据（只显示当前存在的组长）
         
         Args:
             year_month: 年月，格式如 "2025-11"
@@ -280,11 +298,13 @@ class Database:
         """
         try:
             cursor = self.conn.cursor()
+            # 只返回在 team_leaders 表中存在的组长数据，并使用 team_leaders 表中的最新团队名称和姓名
             cursor.execute('''
-                SELECT account, name, team, total_count
-                FROM monthly_summary
-                WHERE year_month = ?
-                ORDER BY total_count DESC
+                SELECT t.account_id as account, t.name, t.team_name as team, m.total_count
+                FROM monthly_summary m
+                INNER JOIN team_leaders t ON m.account = t.account_id
+                WHERE m.year_month = ?
+                ORDER BY m.total_count DESC
             ''', (year_month,))
             
             results = []
@@ -303,7 +323,7 @@ class Database:
             return []
     
     def get_daily_with_monthly(self, target_date: date) -> List[Dict]:
-        """获取指定日期的数据，同时包含当月累计
+        """获取指定日期的数据，同时包含当月累计（只显示当前存在的组长）
         
         Args:
             target_date: 目标日期
@@ -315,14 +335,16 @@ class Database:
             cursor = self.conn.cursor()
             year_month = target_date.strftime('%Y-%m')
             
+            # 只返回在 team_leaders 表中存在的组长数据，并使用 team_leaders 表中的最新团队名称和姓名
             cursor.execute('''
                 SELECT 
-                    d.account, 
-                    d.name, 
-                    d.team, 
+                    t.account_id as account, 
+                    t.name, 
+                    t.team_name as team, 
                     d.count as daily_count,
                     COALESCE(m.total_count, 0) as monthly_count
                 FROM daily_summary d
+                INNER JOIN team_leaders t ON d.account = t.account_id
                 LEFT JOIN monthly_summary m 
                     ON d.account = m.account AND m.year_month = ?
                 WHERE d.date = ?
@@ -344,6 +366,180 @@ class Database:
         except Exception as e:
             logging.error(f"获取日数据（含月累计）失败: {e}")
             return []
+    
+    def get_all_team_leaders(self) -> List[Dict]:
+        """获取所有团队组长映射
+        
+        Returns:
+            List[Dict]: 团队组长列表
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                SELECT id, team_name, account_id, name, created_at, updated_at
+                FROM team_leaders
+                ORDER BY team_name, name
+            ''')
+            
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    'id': row['id'],
+                    'team_name': row['team_name'],
+                    'account_id': row['account_id'],
+                    'name': row['name'],
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at']
+                })
+            
+            return results
+            
+        except Exception as e:
+            logging.error(f"获取团队组长列表失败: {e}")
+            return []
+    
+    def get_team_leader_by_id(self, leader_id: int) -> Optional[Dict]:
+        """根据ID获取团队组长
+        
+        Args:
+            leader_id: 组长ID
+            
+        Returns:
+            Optional[Dict]: 组长信息，不存在则返回None
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                SELECT id, team_name, account_id, name, created_at, updated_at
+                FROM team_leaders
+                WHERE id = ?
+            ''', (leader_id,))
+            
+            row = cursor.fetchone()
+            if row:
+                return {
+                    'id': row['id'],
+                    'team_name': row['team_name'],
+                    'account_id': row['account_id'],
+                    'name': row['name'],
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at']
+                }
+            return None
+            
+        except Exception as e:
+            logging.error(f"获取团队组长失败: {e}")
+            return None
+    
+    def add_team_leader(self, team_name: str, account_id: str, name: str) -> bool:
+        """添加团队组长映射
+        
+        Args:
+            team_name: 团队名称
+            account_id: 账号ID
+            name: 姓名
+            
+        Returns:
+            bool: 是否添加成功
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                INSERT INTO team_leaders (team_name, account_id, name)
+                VALUES (?, ?, ?)
+            ''', (team_name, account_id, name))
+            
+            self.conn.commit()
+            logging.info(f"添加团队组长成功: {team_name} - {name} ({account_id})")
+            return True
+            
+        except Exception as e:
+            logging.error(f"添加团队组长失败: {e}")
+            self.conn.rollback()
+            return False
+    
+    def update_team_leader(self, leader_id: int, team_name: str, account_id: str, name: str) -> bool:
+        """更新团队组长映射
+        
+        Args:
+            leader_id: 组长ID
+            team_name: 团队名称
+            account_id: 账号ID
+            name: 姓名
+            
+        Returns:
+            bool: 是否更新成功
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                UPDATE team_leaders
+                SET team_name = ?, account_id = ?, name = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (team_name, account_id, name, leader_id))
+            
+            self.conn.commit()
+            
+            if cursor.rowcount > 0:
+                logging.info(f"更新团队组长成功: ID={leader_id}")
+                return True
+            else:
+                logging.warning(f"团队组长不存在: ID={leader_id}")
+                return False
+            
+        except Exception as e:
+            logging.error(f"更新团队组长失败: {e}")
+            self.conn.rollback()
+            return False
+    
+    def delete_team_leader(self, leader_id: int) -> bool:
+        """删除团队组长映射
+        
+        Args:
+            leader_id: 组长ID
+            
+        Returns:
+            bool: 是否删除成功
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('DELETE FROM team_leaders WHERE id = ?', (leader_id,))
+            
+            self.conn.commit()
+            
+            if cursor.rowcount > 0:
+                logging.info(f"删除团队组长成功: ID={leader_id}")
+                return True
+            else:
+                logging.warning(f"团队组长不存在: ID={leader_id}")
+                return False
+            
+        except Exception as e:
+            logging.error(f"删除团队组长失败: {e}")
+            self.conn.rollback()
+            return False
+    
+    def get_team_mapping_dict(self) -> Dict[str, str]:
+        """获取团队映射字典（账号 -> 团队名称）
+        
+        用于向后兼容，返回与原CSV格式相同的字典
+        
+        Returns:
+            Dict[str, str]: {account_id: team_name}
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('SELECT account_id, team_name FROM team_leaders')
+            
+            mapping = {}
+            for row in cursor.fetchall():
+                mapping[row['account_id']] = row['team_name']
+            
+            return mapping
+            
+        except Exception as e:
+            logging.error(f"获取团队映射字典失败: {e}")
+            return {}
     
     def close(self):
         """关闭数据库连接"""

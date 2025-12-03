@@ -14,18 +14,11 @@ import logging
 from report_generator import ReportGenerator
 
 # 配置日志
-from logging.handlers import RotatingFileHandler
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        RotatingFileHandler(
-            'test_message.log',
-            encoding='utf-8',
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5  # 保留5个备份文件
-        )
+        logging.FileHandler('test_message.log', encoding='utf-8')
     ]
 )
 
@@ -393,39 +386,8 @@ class CallRecordingReporter:
             logging.error(f"上传图片时出错: {e}")
             return None
     
-    
-    def _cleanup_temp_image(self, image_path):
-        """清理临时图片文件（包括PNG和JPEG版本）
-        
-        Args:
-            image_path: 图片文件路径
-        """
-        try:
-            # 删除主图片文件
-            if os.path.exists(image_path):
-                os.remove(image_path)
-                logging.info(f"已删除临时图片: {os.path.basename(image_path)}")
-            
-            # 删除对应的JPEG/PNG副本
-            if image_path.endswith('.png'):
-                jpeg_path = image_path[:-4] + '.jpg'
-                if os.path.exists(jpeg_path):
-                    os.remove(jpeg_path)
-                    logging.info(f"已删除临时图片: {os.path.basename(jpeg_path)}")
-            elif image_path.endswith('.jpg') or image_path.endswith('.jpeg'):
-                png_path = image_path.rsplit('.', 1)[0] + '.png'
-                if os.path.exists(png_path):
-                    os.remove(png_path)
-                    logging.info(f"已删除临时图片: {os.path.basename(png_path)}")
-        except Exception as e:
-            logging.warning(f"清理临时图片失败: {e}")
-    
     def send_to_wechat(self, report_data):
         """发送报表到企业微信群，只发送图片"""
-        # 记录使用的webhook (隐藏部分key以保护安全)
-        masked_webhook = self.webhook_url[:60] + '...' if len(self.webhook_url) > 60 else self.webhook_url
-        logging.info(f"send_to_wechat 使用webhook: {masked_webhook}")
-        
         if not report_data:
             logging.warning("没有报表数据可发送")
             return False
@@ -486,9 +448,7 @@ class CallRecordingReporter:
                                 if response.status_code == 200:
                                     result = response.json()
                                     if result.get('errcode') == 0:
-                                        logging.info(f"图片报表发送成功 -> {masked_webhook}")
-                                        # 发送成功后删除临时图片文件
-                                        self._cleanup_temp_image(image_path)
+                                        logging.info("图片报表发送成功")
                                         return True
                                     else:
                                         logging.error(f"图片发送失败: {result}")
@@ -557,9 +517,9 @@ class CallRecordingReporter:
 
 def main():
     #  测试webhook
-    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
+    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
     #  听音统计表
-    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
+    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
 
     
     

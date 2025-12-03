@@ -497,6 +497,93 @@ def update_schedule():
         logging.error(f"更新定时任务失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/team-leaders', methods=['GET'])
+@login_required
+def get_team_leaders():
+    """获取所有团队组长"""
+    try:
+        leaders = db.get_all_team_leaders()
+        return jsonify({
+            'success': True,
+            'data': leaders
+        })
+    except Exception as e:
+        logging.error(f"获取团队组长列表失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/team-leaders', methods=['POST'])
+@login_required
+def create_team_leader():
+    """添加团队组长"""
+    try:
+        data = request.get_json()
+        team_name = data.get('team_name', '').strip()
+        account_id = data.get('account_id', '').strip()
+        name = data.get('name', '').strip()
+        
+        if not team_name or not account_id or not name:
+            return jsonify({'success': False, 'error': '所有字段都是必填的'}), 400
+        
+        success = db.add_team_leader(team_name, account_id, name)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '添加成功'
+            })
+        else:
+            return jsonify({'success': False, 'error': '添加失败，账号可能已存在'}), 400
+            
+    except Exception as e:
+        logging.error(f"添加团队组长失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/team-leaders/<int:leader_id>', methods=['PUT'])
+@login_required
+def update_team_leader(leader_id):
+    """更新团队组长"""
+    try:
+        data = request.get_json()
+        team_name = data.get('team_name', '').strip()
+        account_id = data.get('account_id', '').strip()
+        name = data.get('name', '').strip()
+        
+        if not team_name or not account_id or not name:
+            return jsonify({'success': False, 'error': '所有字段都是必填的'}), 400
+        
+        success = db.update_team_leader(leader_id, team_name, account_id, name)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '更新成功'
+            })
+        else:
+            return jsonify({'success': False, 'error': '更新失败，组长不存在或账号已被使用'}), 400
+            
+    except Exception as e:
+        logging.error(f"更新团队组长失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/team-leaders/<int:leader_id>', methods=['DELETE'])
+@login_required
+def delete_team_leader(leader_id):
+    """删除团队组长"""
+    try:
+        success = db.delete_team_leader(leader_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '删除成功'
+            })
+        else:
+            return jsonify({'success': False, 'error': '删除失败，组长不存在'}), 404
+            
+    except Exception as e:
+        logging.error(f"删除团队组长失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/static/<path:path>')
 def send_static(path):
     """提供静态文件"""
