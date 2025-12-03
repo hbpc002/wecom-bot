@@ -14,11 +14,18 @@ import logging
 from report_generator import ReportGenerator
 
 # 配置日志
+from logging.handlers import RotatingFileHandler
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('test_message.log', encoding='utf-8')
+        RotatingFileHandler(
+            'test_message.log',
+            encoding='utf-8',
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5  # 保留5个备份文件
+        )
     ]
 )
 
@@ -178,6 +185,7 @@ class CallRecordingReporter:
                     report_data = {}
                     total_operations = 0
                     operation_dates = []  # 存储所有操作时间
+                    records_to_insert = []  # 存储待插入数据库的记录
                     
                     for row_num, row in enumerate(reader, start=2):  # 从第2行开始计数
                         try:
@@ -206,6 +214,13 @@ class CallRecordingReporter:
                                 # 收集操作时间
                                 if operation_time:
                                     operation_dates.append(operation_time)
+                                    records_to_insert.append({
+                                        'account': account,
+                                        'name': name,
+                                        'team': team,
+                                        'operation_time': operation_time,
+                                        'source_file': zip_filename
+                                    })
                                 
                         except Exception as e:
                             logging.warning(f"跳过第{row_num}行数据: {e}, 行内容: {row}")
@@ -216,14 +231,29 @@ class CallRecordingReporter:
                     if not report_date:
                         # 如果无法从操作时间提取，则回退到文件名提取
                         report_date = self.extract_date_from_filename(zip_filename)
+                    
+                    # 如果有数据库连接，保存数据到数据库
+                    if hasattr(self, 'db') and self.db and records_to_insert:
+                        try:
+                            logging.info(f"正在保存 {len(records_to_insert)} 条记录到数据库...")
+                            self.db.insert_batch_records(records_to_insert)
                             
+                            if report_date:
+                                logging.info(f"正在更新日汇总: {report_date}")
+                                self.db.update_daily_summary(report_date)
+                                
+                                year_month = report_date.strftime('%Y-%m')
+                                logging.info(f"正在更新月汇总: {year_month}")
+                                self.db.update_monthly_summary(year_month)
+                        except Exception as e:
+                            logging.error(f"保存数据到数据库失败: {e}")
+
                     return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                     
         except Exception as e:
             logging.error(f"处理文件 {zip_filename} 时出错: {e}")
             return None
             
-        
     def _calculate_md5(self, data):
         """计算数据的MD5值"""
         return hashlib.md5(data).hexdigest()
@@ -363,8 +393,39 @@ class CallRecordingReporter:
             logging.error(f"上传图片时出错: {e}")
             return None
     
+    
+    def _cleanup_temp_image(self, image_path):
+        """清理临时图片文件（包括PNG和JPEG版本）
+        
+        Args:
+            image_path: 图片文件路径
+        """
+        try:
+            # 删除主图片文件
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                logging.info(f"已删除临时图片: {os.path.basename(image_path)}")
+            
+            # 删除对应的JPEG/PNG副本
+            if image_path.endswith('.png'):
+                jpeg_path = image_path[:-4] + '.jpg'
+                if os.path.exists(jpeg_path):
+                    os.remove(jpeg_path)
+                    logging.info(f"已删除临时图片: {os.path.basename(jpeg_path)}")
+            elif image_path.endswith('.jpg') or image_path.endswith('.jpeg'):
+                png_path = image_path.rsplit('.', 1)[0] + '.png'
+                if os.path.exists(png_path):
+                    os.remove(png_path)
+                    logging.info(f"已删除临时图片: {os.path.basename(png_path)}")
+        except Exception as e:
+            logging.warning(f"清理临时图片失败: {e}")
+    
     def send_to_wechat(self, report_data):
         """发送报表到企业微信群，只发送图片"""
+        # 记录使用的webhook (隐藏部分key以保护安全)
+        masked_webhook = self.webhook_url[:60] + '...' if len(self.webhook_url) > 60 else self.webhook_url
+        logging.info(f"send_to_wechat 使用webhook: {masked_webhook}")
+        
         if not report_data:
             logging.warning("没有报表数据可发送")
             return False
@@ -425,7 +486,9 @@ class CallRecordingReporter:
                                 if response.status_code == 200:
                                     result = response.json()
                                     if result.get('errcode') == 0:
-                                        logging.info("图片报表发送成功")
+                                        logging.info(f"图片报表发送成功 -> {masked_webhook}")
+                                        # 发送成功后删除临时图片文件
+                                        self._cleanup_temp_image(image_path)
                                         return True
                                     else:
                                         logging.error(f"图片发送失败: {result}")
@@ -493,10 +556,10 @@ class CallRecordingReporter:
         self.process_daily_files()
 
 def main():
-    # 企业微信机器人webhook
-    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=2645bd5f-4802-45dc-8fd7-c46f67d317a9"
+    #  测试webhook
+    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
     #  听音统计表
-    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
+    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
 
     
     

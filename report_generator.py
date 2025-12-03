@@ -11,7 +11,7 @@ except ImportError:
 
 class ReportGenerator:
     @staticmethod
-    def generate_report(report_data, report_date, total_operations, filename, file_dir, output_format='both'):
+    def generate_report(report_data, report_date, total_operations, filename, file_dir, output_format='both', monthly_data=None):
         logging.info("generate_report function called")
         logging.info(f"report_data: {report_data}")
         logging.info(f"report_date: {report_date}")
@@ -52,11 +52,17 @@ class ReportGenerator:
         all_members = []
         for team, members in team_data.items():
             for member in members:
+                # 获取月累计数据
+                monthly_count = 0
+                if monthly_data and member['account'] in monthly_data:
+                    monthly_count = monthly_data[member['account']]
+                
                 all_members.append({
                     'team': team,
                     'name': member['name'],
                     'account': member['account'],
-                    'count': member['count']
+                    'count': member['count'],
+                    'monthly_count': monthly_count
                 })
 
         # 按操作次数降序排序
@@ -85,13 +91,19 @@ class ReportGenerator:
         table_lines.append("## 📋 详细数据")
         # table_lines.append("")  # 空行
         
-        # 添加表格头
-        table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 听录音次数 |")
+        # 添加表格头（包含月累计列）
+        if monthly_data:
+            table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 当日听录音次数 | 月累计 |")
+        else:
+            table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 听录音次数 |")
         # table_lines.append("|------|------|------|------|----------|")
         
         # 添加表格数据
         for i, member in enumerate(all_members_sorted, start=1):
-            table_lines.append(f"| {i} | {member['team']} | {member['name']} | {member['account']} | {member['count']} |")
+            if monthly_data:
+                table_lines.append(f"| {i} | {member['team']} | {member['name']} | {member['account']} | {member['count']} | {member['monthly_count']} |")
+            else:
+                table_lines.append(f"| {i} | {member['team']} | {member['name']} | {member['account']} | {member['count']} |")
         
         # 合并汇总信息和表格信息
         all_lines = summary_lines + table_lines
@@ -136,7 +148,7 @@ class ReportGenerator:
             
             full_image_lines.extend(table_lines)  # 添加表格内容
             
-            ReportGenerator._generate_image_report(full_image_lines, image_path)
+            ReportGenerator._generate_image_report(full_image_lines, image_path, has_monthly=bool(monthly_data))
             logging.info(f"表格图片已保存到: {image_path}")
             
             if output_format == 'image':
@@ -147,7 +159,7 @@ class ReportGenerator:
         return result
     
     @staticmethod
-    def _generate_image_report(report_lines, output_path):
+    def _generate_image_report(report_lines, output_path, has_monthly=False):
         """生成图片格式的报表"""
         logging.info("Generating image report...")
         if not PIL_AVAILABLE:
@@ -299,7 +311,10 @@ class ReportGenerator:
                 
                 # 绘制表头文字
                 x_pos = x_margin + 10
-                col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
+                if has_monthly:
+                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
+                else:
+                    col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
                 table_width = img_width - 2 * x_margin
                 for i, cell in enumerate(header_cells):
                     if i < len(col_widths):
@@ -320,7 +335,10 @@ class ReportGenerator:
                 
                 # 绘制单元格文字
                 x_pos = x_margin + 10
-                col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
+                if has_monthly:
+                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
+                else:
+                    col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
                 table_width = img_width - 2 * x_margin
                 for i, cell in enumerate(cells):
                     if i < len(col_widths):
