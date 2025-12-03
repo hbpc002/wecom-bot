@@ -195,30 +195,25 @@ class CallRecordingReporter:
                                 
                             logging.debug(f"处理数据: 账号={account}, 姓名={name}, 时间={operation_time}")
                             
-                            # 确定团队名称：如果在映射中则使用映射的团队，否则标记为"未分配组"
+                            # 如果账号在团队映射中，则统计
                             if account in self.team_mapping:
                                 team = self.team_mapping[account]
-                            else:
-                                team = "未分配组"
-                            
-                            # 收集操作时间和数据库记录（所有记录都保存）
-                            if operation_time:
-                                operation_dates.append(operation_time)
-                                records_to_insert.append({
-                                    'account': account,
-                                    'name': name,
-                                    'team': team,
-                                    'operation_time': operation_time,
-                                    'source_file': zip_filename
-                                })
-                            
-                            # 只有组长的数据才统计到 report_data（用于即时报表生成）
-                            if account in self.team_mapping:
                                 key = (team, name, account)
                                 if key not in report_data:
                                     report_data[key] = 0
                                 report_data[key] += 1
                                 total_operations += 1
+                                
+                                # 收集操作时间
+                                if operation_time:
+                                    operation_dates.append(operation_time)
+                                    records_to_insert.append({
+                                        'account': account,
+                                        'name': name,
+                                        'team': team,
+                                        'operation_time': operation_time,
+                                        'source_file': zip_filename
+                                    })
                                 
                         except Exception as e:
                             logging.warning(f"跳过第{row_num}行数据: {e}, 行内容: {row}")
