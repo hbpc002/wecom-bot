@@ -29,5 +29,5 @@ EXPOSE 5000
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=web_server.py
 
-# 启动命令（默认启动Web服务器）
-CMD ["python", "web_server.py"]
+# 启动命令(使用Gunicorn生产服务器)
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "web_server:app"]
