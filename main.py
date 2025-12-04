@@ -243,9 +243,40 @@ class CallRecordingReporter:
                                 year_month = report_date.strftime('%Y-%m')
                                 logging.info(f"正在更新月汇总: {year_month}")
                                 self.db.update_monthly_summary(year_month)
+                                
+                                # 从数据库查询当日汇总数据，确保上传提示与报表查询一致
+                                try:
+                                    daily_summary = self.db.get_daily_summary(report_date)
+                                    
+                                    # 重新计算统计数据（基于数据库查询结果）
+                                    db_total_operations = sum(item['count'] for item in daily_summary)
+                                    db_people_count = len(daily_summary)
+                                    
+                                    # 重新构建 report_data（基于数据库查询结果）
+                                    db_report_data = {}
+                                    for item in daily_summary:
+                                        key = (item['team'], item['name'], item['account'])
+                                        db_report_data[key] = item['count']
+                                    
+                                    logging.info(f"数据库查询结果: 总次数={db_total_operations}, 参与人数={db_people_count}")
+                                    
+                                    # 使用数据库查询的结果生成报表
+                                    return ReportGenerator.generate_report(
+                                        db_report_data, 
+                                        report_date, 
+                                        db_total_operations, 
+                                        zip_filename, 
+                                        self.file_dir, 
+                                        'both'
+                                    )
+                                except Exception as e:
+                                    logging.error(f"从数据库查询汇总数据失败，使用原始统计: {e}")
+                                    # 如果数据库查询失败，回退到原始逻辑
+                                    return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                         except Exception as e:
                             logging.error(f"保存数据到数据库失败: {e}")
 
+                    # 如果没有数据库连接或保存失败，使用原始统计
                     return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                     
         except Exception as e:
