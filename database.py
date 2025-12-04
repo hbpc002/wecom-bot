@@ -242,13 +242,25 @@ class Database:
             cursor.execute('DELETE FROM monthly_summary WHERE year_month = ?', (year_month,))
             
             # 重新计算汇总数据
+            # 注意：只按 account 分组，使用最新日期的 name 和 team
+            # 这样避免了当同一账号在不同日期有不同name/team时违反UNIQUE约束
             cursor.execute('''
                 INSERT INTO monthly_summary (year_month, account, name, team, total_count, updated_at)
-                SELECT ?, account, name, team, SUM(count) as total_count, CURRENT_TIMESTAMP
-                FROM daily_summary
-                WHERE strftime('%Y-%m', date) = ?
-                GROUP BY account, name, team
-            ''', (year_month, year_month))
+                SELECT 
+                    ?,
+                    account,
+                    (SELECT name FROM daily_summary d2 
+                     WHERE d2.account = d1.account AND strftime('%Y-%m', d2.date) = ?
+                     ORDER BY d2.date DESC LIMIT 1) as name,
+                    (SELECT team FROM daily_summary d2 
+                     WHERE d2.account = d1.account AND strftime('%Y-%m', d2.date) = ?
+                     ORDER BY d2.date DESC LIMIT 1) as team,
+                    SUM(count) as total_count,
+                    CURRENT_TIMESTAMP
+                FROM daily_summary d1
+                WHERE strftime('%Y-%m', d1.date) = ?
+                GROUP BY account
+            ''', (year_month, year_month, year_month, year_month))
             
             self.conn.commit()
             logging.info(f"月汇总更新成功: {year_month}")
