@@ -14,18 +14,11 @@ import logging
 from report_generator import ReportGenerator
 
 # 配置日志
-from logging.handlers import RotatingFileHandler
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        RotatingFileHandler(
-            'test_message.log',
-            encoding='utf-8',
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5  # 保留5个备份文件
-        )
+        logging.FileHandler('test_message.log', encoding='utf-8')
     ]
 )
 
@@ -202,25 +195,30 @@ class CallRecordingReporter:
                                 
                             logging.debug(f"处理数据: 账号={account}, 姓名={name}, 时间={operation_time}")
                             
-                            # 如果账号在团队映射中，则统计
+                            # 确定团队名称：如果在映射中则使用映射的团队，否则标记为"未分配组"
                             if account in self.team_mapping:
                                 team = self.team_mapping[account]
+                            else:
+                                team = "未分配组"
+                            
+                            # 收集操作时间和数据库记录（所有记录都保存）
+                            if operation_time:
+                                operation_dates.append(operation_time)
+                                records_to_insert.append({
+                                    'account': account,
+                                    'name': name,
+                                    'team': team,
+                                    'operation_time': operation_time,
+                                    'source_file': zip_filename
+                                })
+                            
+                            # 只有组长的数据才统计到 report_data（用于即时报表生成）
+                            if account in self.team_mapping:
                                 key = (team, name, account)
                                 if key not in report_data:
                                     report_data[key] = 0
                                 report_data[key] += 1
                                 total_operations += 1
-                                
-                                # 收集操作时间
-                                if operation_time:
-                                    operation_dates.append(operation_time)
-                                    records_to_insert.append({
-                                        'account': account,
-                                        'name': name,
-                                        'team': team,
-                                        'operation_time': operation_time,
-                                        'source_file': zip_filename
-                                    })
                                 
                         except Exception as e:
                             logging.warning(f"跳过第{row_num}行数据: {e}, 行内容: {row}")
@@ -245,9 +243,40 @@ class CallRecordingReporter:
                                 year_month = report_date.strftime('%Y-%m')
                                 logging.info(f"正在更新月汇总: {year_month}")
                                 self.db.update_monthly_summary(year_month)
+                                
+                                # 从数据库查询当日汇总数据，确保上传提示与报表查询一致
+                                try:
+                                    daily_summary = self.db.get_daily_summary(report_date)
+                                    
+                                    # 重新计算统计数据（基于数据库查询结果）
+                                    db_total_operations = sum(item['count'] for item in daily_summary)
+                                    db_people_count = len(daily_summary)
+                                    
+                                    # 重新构建 report_data（基于数据库查询结果）
+                                    db_report_data = {}
+                                    for item in daily_summary:
+                                        key = (item['team'], item['name'], item['account'])
+                                        db_report_data[key] = item['count']
+                                    
+                                    logging.info(f"数据库查询结果: 总次数={db_total_operations}, 参与人数={db_people_count}")
+                                    
+                                    # 使用数据库查询的结果生成报表
+                                    return ReportGenerator.generate_report(
+                                        db_report_data, 
+                                        report_date, 
+                                        db_total_operations, 
+                                        zip_filename, 
+                                        self.file_dir, 
+                                        'both'
+                                    )
+                                except Exception as e:
+                                    logging.error(f"从数据库查询汇总数据失败，使用原始统计: {e}")
+                                    # 如果数据库查询失败，回退到原始逻辑
+                                    return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                         except Exception as e:
                             logging.error(f"保存数据到数据库失败: {e}")
 
+                    # 如果没有数据库连接或保存失败，使用原始统计
                     return ReportGenerator.generate_report(report_data, report_date, total_operations, zip_filename, self.file_dir, 'both')
                     
         except Exception as e:
@@ -393,39 +422,8 @@ class CallRecordingReporter:
             logging.error(f"上传图片时出错: {e}")
             return None
     
-    
-    def _cleanup_temp_image(self, image_path):
-        """清理临时图片文件（包括PNG和JPEG版本）
-        
-        Args:
-            image_path: 图片文件路径
-        """
-        try:
-            # 删除主图片文件
-            if os.path.exists(image_path):
-                os.remove(image_path)
-                logging.info(f"已删除临时图片: {os.path.basename(image_path)}")
-            
-            # 删除对应的JPEG/PNG副本
-            if image_path.endswith('.png'):
-                jpeg_path = image_path[:-4] + '.jpg'
-                if os.path.exists(jpeg_path):
-                    os.remove(jpeg_path)
-                    logging.info(f"已删除临时图片: {os.path.basename(jpeg_path)}")
-            elif image_path.endswith('.jpg') or image_path.endswith('.jpeg'):
-                png_path = image_path.rsplit('.', 1)[0] + '.png'
-                if os.path.exists(png_path):
-                    os.remove(png_path)
-                    logging.info(f"已删除临时图片: {os.path.basename(png_path)}")
-        except Exception as e:
-            logging.warning(f"清理临时图片失败: {e}")
-    
     def send_to_wechat(self, report_data):
         """发送报表到企业微信群，只发送图片"""
-        # 记录使用的webhook (隐藏部分key以保护安全)
-        masked_webhook = self.webhook_url[:60] + '...' if len(self.webhook_url) > 60 else self.webhook_url
-        logging.info(f"send_to_wechat 使用webhook: {masked_webhook}")
-        
         if not report_data:
             logging.warning("没有报表数据可发送")
             return False
@@ -486,9 +484,7 @@ class CallRecordingReporter:
                                 if response.status_code == 200:
                                     result = response.json()
                                     if result.get('errcode') == 0:
-                                        logging.info(f"图片报表发送成功 -> {masked_webhook}")
-                                        # 发送成功后删除临时图片文件
-                                        self._cleanup_temp_image(image_path)
+                                        logging.info("图片报表发送成功")
                                         return True
                                     else:
                                         logging.error(f"图片发送失败: {result}")
@@ -557,9 +553,9 @@ class CallRecordingReporter:
 
 def main():
     #  测试webhook
-    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
+    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"
     #  听音统计表
-    webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
+    # webhook_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"
 
     
     

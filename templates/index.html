@@ -129,7 +129,19 @@
                     </div>
                     <button class="btn btn-primary" id="saveScheduleBtn">保存设置</button>
                 </div>
-                <p class="schedule-note">💡 启用后，系统将在每天指定时间自动发送当天数据到生产环境</p>
+                <p class="schedule-note">💡 启用后，系统将在每天指定时间自动发送前一天数据到生产环境</p>
+            </div>
+        </section>
+
+        <!-- 组长管理区域 -->
+        <section class="team-leaders-section">
+            <h2>👥 组长管理</h2>
+            <div class="section-actions">
+                <button class="btn btn-primary" id="addTeamLeaderBtn">➕ 添加组长</button>
+                <button class="btn btn-secondary" id="refreshTeamLeadersBtn">刷新列表</button>
+            </div>
+            <div class="team-leaders-table" id="teamLeadersTable">
+                <p class="loading">加载中...</p>
             </div>
         </section>
 
@@ -141,6 +153,37 @@
                 <p class="loading">加载中...</p>
             </div>
         </section>
+    </div>
+
+    <!-- 组长编辑对话框 -->
+    <div class="modal" id="teamLeaderModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">添加组长</h3>
+                <button class="modal-close" onclick="closeTeamLeaderModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="teamLeaderForm">
+                    <input type="hidden" id="leaderId">
+                    <div class="form-group">
+                        <label for="teamName">班组名称：</label>
+                        <input type="text" id="teamName" class="form-input" required placeholder="例如：一班1组">
+                    </div>
+                    <div class="form-group">
+                        <label for="accountId">账号ID：</label>
+                        <input type="text" id="accountId" class="form-input" required placeholder="例如：KF77100020">
+                    </div>
+                    <div class="form-group">
+                        <label for="leaderName">姓名：</label>
+                        <input type="text" id="leaderName" class="form-input" required placeholder="例如：张三">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveTeamLeader()">保存</button>
+                <button class="btn btn-secondary" onclick="closeTeamLeaderModal()">取消</button>
+            </div>
+        </div>
     </div>
 
     <footer>

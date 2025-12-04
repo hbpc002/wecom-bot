@@ -614,3 +614,191 @@ window.addEventListener('load', () => {
     refreshFilesList();
     loadScheduleStatus();
 });
+
+
+// ========== 组长管理功能 ==========
+
+// 加载组长列表
+async function loadTeamLeaders() {
+    const table = document.getElementById('teamLeadersTable');
+    if (!table) return;
+    
+    table.innerHTML = '<p class="loading">加载中...</p>';
+    
+    try {
+        const response = await fetch('/api/team-leaders');
+        const data = await response.json();
+        
+        if (data.success && data.data.length > 0) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>班组</th>
+                            <th>账号ID</th>
+                            <th>姓名</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.data.forEach(leader => {
+                html += `
+                    <tr>
+                        <td>${leader.team_name}</td>
+                        <td>${leader.account_id}</td>
+                        <td>${leader.name}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="editTeamLeader(${leader.id})">编辑</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteTeamLeader(${leader.id})">删除</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            
+            table.innerHTML = html;
+        } else {
+            table.innerHTML = '<div class="empty-state">暂无组长数据</div>';
+        }
+    } catch (error) {
+        console.error('加载组长列表失败:', error);
+        table.innerHTML = '<div class="empty-state">加载失败</div>';
+    }
+}
+
+// 打开添加组长对话框
+function openAddTeamLeaderDialog() {
+    document.getElementById('modalTitle').textContent = '添加组长';
+    document.getElementById('leaderId').value = '';
+    document.getElementById('teamName').value = '';
+    document.getElementById('accountId').value = '';
+    document.getElementById('leaderName').value = '';
+    document.getElementById('teamLeaderModal').style.display = 'flex';
+}
+
+// 编辑组长
+async function editTeamLeader(id) {
+    try {
+        const response = await fetch('/api/team-leaders');
+        const data = await response.json();
+        
+        if (data.success) {
+            const leader = data.data.find(l => l.id === id);
+            if (leader) {
+                document.getElementById('modalTitle').textContent = '编辑组长';
+                document.getElementById('leaderId').value = leader.id;
+                document.getElementById('teamName').value = leader.team_name;
+                document.getElementById('accountId').value = leader.account_id;
+                document.getElementById('leaderName').value = leader.name;
+                document.getElementById('teamLeaderModal').style.display = 'flex';
+            }
+        }
+    } catch (error) {
+        console.error('获取组长信息失败:', error);
+        alert('获取组长信息失败');
+    }
+}
+
+// 保存组长
+async function saveTeamLeader() {
+    const id = document.getElementById('leaderId').value;
+    const teamName = document.getElementById('teamName').value.trim();
+    const accountId = document.getElementById('accountId').value.trim();
+    const name = document.getElementById('leaderName').value.trim();
+    
+    if (!teamName || !accountId || !name) {
+        alert('请填写所有字段');
+        return;
+    }
+    
+    try {
+        const url = id ? `/api/team-leaders/${id}` : '/api/team-leaders';
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                team_name: teamName,
+                account_id: accountId,
+                name: name
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message || '保存成功');
+            closeTeamLeaderModal();
+            loadTeamLeaders();
+        } else {
+            alert('保存失败：' + (data.error || '未知错误'));
+        }
+    } catch (error) {
+        console.error('保存组长失败:', error);
+        alert('保存失败：' + error.message);
+    }
+}
+
+// 删除组长
+async function deleteTeamLeader(id) {
+    if (!confirm('确定要删除这个组长吗？')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/team-leaders/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message || '删除成功');
+            loadTeamLeaders();
+        } else {
+            alert('删除失败：' + (data.error || '未知错误'));
+        }
+    } catch (error) {
+        console.error('删除组长失败:', error);
+        alert('删除失败：' + error.message);
+    }
+}
+
+// 关闭模态对话框
+function closeTeamLeaderModal() {
+    document.getElementById('teamLeaderModal').style.display = 'none';
+}
+
+// 绑定事件监听器
+document.addEventListener('DOMContentLoaded', function() {
+    const addBtn = document.getElementById('addTeamLeaderBtn');
+    const refreshBtn = document.getElementById('refreshTeamLeadersBtn');
+    
+    if (addBtn) {
+        addBtn.addEventListener('click', openAddTeamLeaderDialog);
+    }
+    
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadTeamLeaders);
+    }
+    
+    // 页面加载时加载组长列表
+    loadTeamLeaders();
+});
+
+// 点击模态框外部关闭
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('teamLeaderModal');
+    if (modal && e.target === modal) {
+        closeTeamLeaderModal();
+    }
+});
