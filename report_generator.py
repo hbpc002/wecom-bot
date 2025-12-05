@@ -70,13 +70,13 @@ class ReportGenerator:
             
         # 生成汇总信息文本（使用正确的markdown格式）
         summary_lines = []
-        summary_lines.append("📊 听录音统计报表")
+        summary_lines.append("听录音统计报表")
         summary_lines.append(f"📅 日期: {report_date}")
         # summary_lines.append(f"📁 文件: {filename}")
         summary_lines.append("")  # 空行
 
         # 添加汇总信息（使用markdown格式）
-        summary_lines.append("## 📈 汇总信息")
+        summary_lines.append("## 汇总信息")
         summary_lines.append(f"- **总听录音次数**: {total_operations}")
         summary_lines.append(f"- **参与人数**: {len(report_data)}")
         if len(report_data) > 0:
@@ -88,7 +88,7 @@ class ReportGenerator:
         
         # 生成表格数据
         table_lines = []
-        table_lines.append("## 📋 详细数据")
+        table_lines.append("## 详细数据")
         # table_lines.append("")  # 空行
         
         # 添加表格头（包含月累计列）
@@ -137,9 +137,9 @@ class ReportGenerator:
             
             # 创建包含标题和表格的完整图片内容
             full_image_lines = []
-            full_image_lines.append(f"📊 {report_date.strftime('%Y年%m月%d日')}听录音统计报表")
+            full_image_lines.append(f"{report_date.strftime('%Y年%m月%d日')}听录音统计报表")
             full_image_lines.append("")  # 空行
-            full_image_lines.append("## 📈 汇总信息")
+            full_image_lines.append("## 汇总信息")
             full_image_lines.append(f"- **总听录音次数**: {total_operations}")
             full_image_lines.append(f"- **参与人数**: {len(report_data)}")
             if len(report_data) > 0:
@@ -269,7 +269,7 @@ class ReportGenerator:
         table_row_count = 0
         in_table = False
         for line in report_lines:
-            if line.startswith("📊"):
+            if line.startswith("听录音统计报表") or line.endswith("听录音统计报表"):
                 # 主标题 - 添加背景色和圆角
                 draw.rectangle([x_margin - 10, y_pos - 5, img_width - x_margin + 10, y_pos + title_height],
                                 fill=(240, 248, 255))
@@ -282,7 +282,7 @@ class ReportGenerator:
             elif line == "":
                 # 空行
                 y_pos += normal_height // 2
-            elif line.startswith("## 📈"):
+            elif line.startswith("## 汇总信息"):
                 # 汇总信息标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
                                 fill=(241, 245, 249))
@@ -293,7 +293,7 @@ class ReportGenerator:
                 clean_line = line.replace("- **", "").replace("**:", ":")
                 draw_text_mixed(draw, (x_margin, y_pos), clean_line, fill=text_color, font_type='normal')
                 y_pos += normal_height
-            elif line.startswith("## 📋"):
+            elif line.startswith("## 详细数据"):
                 # 表格标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
                                 fill=(241, 245, 249))
