@@ -1,20 +1,56 @@
-# 使用官方Python运行时作为基础镜像
-FROM python:3.11-slim
+# 多阶段构建：第一阶段 - 构建环境
+FROM python:3.11-slim AS builder
 
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖（字体支持）
-RUN apt-get update && apt-get install -y \
-    fonts-noto-cjk \
-    fonts-noto-color-emoji \
+# 安装构建依赖
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        python3-dev \
+        zlib1g-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libfreetype6-dev \
+        liblcms2-dev \
+        libopenjp2-7-dev \
+        libtiff5-dev \
+        libwebp-dev \
+        libharfbuzz-dev \
+        libfribidi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制requirements文件
 COPY requirements.txt .
 
-# 安装Python依赖
-RUN pip install --no-cache-dir -r requirements.txt
+# 安装Python依赖到临时目录
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# 多阶段构建：第二阶段 - 运行环境
+FROM python:3.11-slim
+
+# 设置工作目录
+WORKDIR /app
+
+# 只安装运行时需要的库（不包括构建工具）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    # Pillow 运行时依赖（不需要 -dev 包）
+    libjpeg62-turbo \
+    libpng16-16 \
+    libfreetype6 \
+    liblcms2-2 \
+    libopenjp2-7 \
+    libtiff6 \
+    libwebp7 \
+    libharfbuzz0b \
+    libfribidi0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 从构建阶段复制已安装的Python包
+COPY --from=builder /install /usr/local
 
 # 复制应用代码
 COPY . .

@@ -321,8 +321,13 @@ class CallRecordingReporter:
             # 尝试多种上传方式
             # 方式1：使用files参数
             try:
+                # 使用安全的文件名（移除可能的emoji等特殊字符）
+                safe_filename = os.path.basename(image_path).encode('ascii', 'ignore').decode('ascii')
+                if not safe_filename:
+                    safe_filename = 'image.jpg' if file_extension in ['.jpg', '.jpeg'] else 'image.png'
+                
                 files = {
-                    'media': (os.path.basename(image_path), file_data, mime_type)
+                    'media': (safe_filename, file_data, mime_type)
                 }
                 
                 upload_response = self.session.post(
@@ -347,12 +352,17 @@ class CallRecordingReporter:
             
             # 方式2：使用data参数
             try:
+                # 使用安全的文件名（移除可能的emoji等特殊字符）
+                safe_filename = os.path.basename(image_path).encode('ascii', 'ignore').decode('ascii')
+                if not safe_filename:
+                    safe_filename = 'image.jpg' if file_extension in ['.jpg', '.jpeg'] else 'image.png'
+                
                 # 构建multipart/form-data
                 boundary = '----WebKitFormBoundary' + ''.join(['0123456789ABCDEF'][int(x)] for x in os.urandom(16))
                 
                 body = (
                     f'--{boundary}\r\n'
-                    f'Content-Disposition: form-data; name="media"; filename="{os.path.basename(image_path)}"\r\n'
+                    f'Content-Disposition: form-data; name="media"; filename="{safe_filename}"\r\n'
                     f'Content-Type: {mime_type}\r\n\r\n'
                 ).encode('utf-8')
                 body += file_data
