@@ -64,6 +64,9 @@ EXPOSE 5000
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=web_server.py
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV PYTHONIOENCODING=utf-8
 
 # 启动命令(使用Gunicorn生产服务器)
 CMD ["gunicorn", "-c", "gunicorn.conf.py", "web_server:app"]
