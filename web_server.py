@@ -31,6 +31,7 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
 app.config['UPLOAD_FOLDER'] = 'file'
 app.config['DATABASE_PATH'] = os.getenv('DATABASE_PATH', 'data/wecom_bot.db')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
+app.config['JSON_AS_ASCII'] = False  # 确保JSON不使用ASCII编码,支持中文
 
 # 初始化Flask-Login
 login_manager = LoginManager()
@@ -84,6 +85,15 @@ ALLOWED_EXTENSIONS = {'zip'}
 def allowed_file(filename):
     """检查文件扩展名是否允许"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.after_request
+def after_request(response):
+    """确保所有响应都使用UTF-8编码,避免latin-1编码错误"""
+    if response.content_type and 'application/json' in response.content_type:
+        if 'charset' not in response.content_type.lower():
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+    return response
 
 
 def validate_zip_file(filepath):
@@ -507,7 +517,9 @@ def send_to_wecom():
         
 
         if not date_str:
-            return jsonify({'success': False, 'error': '请选择日期'}), 400
+            response = jsonify({'success': False, 'error': '请选择日期'})
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+            return response, 400
         
         # 选择webhook
         webhook_url = WEBHOOK_TEST if env == 'test' else WEBHOOK_PROD
@@ -527,7 +539,9 @@ def send_to_wecom():
             daily_data = db.get_daily_summary(target_date)
             
             if not daily_data:
-                return jsonify({'success': False, 'error': '该日期没有数据'}), 404
+                response = jsonify({'success': False, 'error': '该日期没有数据'})
+                response.headers['Content-Type'] = 'application/json; charset=utf-8'
+                return response, 404
             
             # 构造报表数据格式
             report_data = {}
@@ -557,18 +571,25 @@ def send_to_wecom():
             if reporter.send_to_wechat(result):
                 env_name = '测试环境' if env == 'test' else '生产环境'
                 logging.info(f"✓ 报表成功发送到{env_name} (webhook: {masked_url})")
-                return jsonify({
+                response = jsonify({
                     'success': True,
                     'message': f'报表已成功发送到{env_name}'
                 })
+                response.headers['Content-Type'] = 'application/json; charset=utf-8'
+                return response
             else:
                 env_name = '测试环境' if env == 'test' else '生产环境'
                 logging.error(f"✗ 报表发送失败 - 环境: {env_name}")
-                return jsonify({'success': False, 'error': '发送失败'}), 500
+                response = jsonify({'success': False, 'error': '发送失败'})
+                response.headers['Content-Type'] = 'application/json; charset=utf-8'
+                return response, 500
             
     except Exception as e:
-        logging.error(f"发送到企业微信失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        error_msg = str(e)
+        logging.error(f"发送到企业微信失败: {error_msg}", exc_info=True)
+        response = jsonify({'success': False, 'error': error_msg})
+        response.headers['Content-Type'] = 'application/json; charset=utf-8'
+        return response, 500
 
 @app.route('/api/schedule/status', methods=['GET'])
 @login_required
