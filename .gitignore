@@ -1,2 +1,4 @@
 file/
 *.log
+__pycache__/
+*.db
