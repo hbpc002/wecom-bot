@@ -84,7 +84,8 @@ class ReportGenerator:
         summary_lines.append("")  # 空行
         
         # 添加调试日志
-        logging.info(f"生成的汇总信息文本: {summary_lines}")
+        # 添加调试日志（避免emoji导致编码错误）
+        logging.info(f"生成报表 - 日期: {report_date}, 总次数: {total_operations}, 参与人数: {len(report_data)}")
         
         # 生成表格数据
         table_lines = []
