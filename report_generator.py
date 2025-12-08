@@ -84,8 +84,8 @@ class ReportGenerator:
         summary_lines.append("")  # 空行
         
         # 添加调试日志
-        # 添加调试日志（避免emoji导致编码错误）
-        logging.info(f"生成报表 - 日期: {report_date}, 总次数: {total_operations}, 参与人数: {len(report_data)}")
+        # 添加调试日志（避免emoji导致编码错误）
+        # logging.info(f"生成报表 - 日期: {report_date}, 总次数: {total_operations}, 参与人数: {len(report_data)}")
         
         # 生成表格数据
         table_lines = []
@@ -121,24 +121,14 @@ class ReportGenerator:
         
         # 根据输出格式生成文件
         if output_format in ['text', 'both']:
-            # 保存文本报表（只包含汇总信息）
-            text_filename = f"summary_{report_date.strftime('%Y%m%d')}.txt"
-            text_path = os.path.join(file_dir, text_filename)
-            
-            with open(text_path, 'w', encoding='utf-8') as f:
-                f.write("\n".join(summary_lines))
-            
-            logging.info(f"Summary saved to: {text_path}")
-            result['filename'] = text_filename
-        
-        if output_format in ['image', 'both'] and PIL_AVAILABLE:
             # 生成图片报表（包含标题和表格）
             image_filename = f"table_{report_date.strftime('%Y%m%d')}.png"
+            
             image_path = os.path.join(file_dir, image_filename)
             
             # 创建包含标题和表格的完整图片内容
             full_image_lines = []
-            full_image_lines.append(f"{report_date.year}年{report_date.month}月{report_date.day}日 听录音统计报表")
+            full_image_lines.append(f"📊{report_date.year}年{report_date.month}月{report_date.day}日 听录音统计报表")
             full_image_lines.append("")  # 空行
             full_image_lines.append("## 📈 汇总信息")
             full_image_lines.append(f"- **总听录音次数**: {total_operations}")
