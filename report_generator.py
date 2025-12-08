@@ -70,17 +70,17 @@ class ReportGenerator:
             
         # 生成汇总信息文本（使用正确的markdown格式）
         summary_lines = []
-        summary_lines.append("Call Recording Statistics Report")
+        summary_lines.append("📊 听录音统计报表")
         summary_lines.append(f"📅 日期: {report_date}")
         # summary_lines.append(f"📁 文件: {filename}")
         summary_lines.append("")  # 空行
 
         # 添加汇总信息（使用markdown格式）
-        summary_lines.append("## 汇总信息")
+        summary_lines.append("## 📈 汇总信息")
         summary_lines.append(f"- **总听录音次数**: {total_operations}")
         summary_lines.append(f"- **参与人数**: {len(report_data)}")
         if len(report_data) > 0:
-            summary_lines.append(f"- **Average per Person**: {total_operations/len(report_data):.1f}")
+            summary_lines.append(f"- **人均次数**: {total_operations/len(report_data):.1f}")
         summary_lines.append("")  # 空行
         
         # 添加调试日志
@@ -88,14 +88,14 @@ class ReportGenerator:
         
         # 生成表格数据
         table_lines = []
-        table_lines.append("## 详细数据")
+        table_lines.append("## 📋 详细数据")
         # table_lines.append("")  # 空行
         
         # 添加表格头（包含月累计列）
         if monthly_data:
-            table_lines.append("| Rank | Team | Name | Account | Daily | Monthly |")
+            table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 当日听录音次数 | 月累计 |")
         else:
-            table_lines.append("| Rank | Team | Name | Account | Count |")
+            table_lines.append("| 排名 | 团队 | 姓名 | 账号 | 听录音次数 |")
         # table_lines.append("|------|------|------|------|----------|")
         
         # 添加表格数据
@@ -139,11 +139,11 @@ class ReportGenerator:
             full_image_lines = []
             full_image_lines.append(f"{report_date.year}年{report_date.month}月{report_date.day}日 听录音统计报表")
             full_image_lines.append("")  # 空行
-            full_image_lines.append("## 汇总信息")
+            full_image_lines.append("## 📈 汇总信息")
             full_image_lines.append(f"- **总听录音次数**: {total_operations}")
             full_image_lines.append(f"- **参与人数**: {len(report_data)}")
             if len(report_data) > 0:
-                full_image_lines.append(f"- **Average per Person**: {total_operations/len(report_data):.1f}")
+                full_image_lines.append(f"- **人均次数**: {total_operations/len(report_data):.1f}")
             full_image_lines.append("")  # 空行
             
             full_image_lines.extend(table_lines)  # 添加表格内容
@@ -313,18 +313,18 @@ class ReportGenerator:
             elif line == "":
                 # 空行
                 y_pos += normal_height // 2
-            elif line.startswith("## 汇总信息"):
+            elif line.startswith("## 📈 汇总信息") or line.startswith("## 汇总信息"):
                 # 汇总信息标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
                                 fill=(241, 245, 249))
                 draw_text_mixed(draw, (x_margin, y_pos), line.replace("## ", ""), fill=header_color, font_type='header')
                 y_pos += header_height + 5
-            elif line.startswith("- **Total") or line.startswith("- **Participants") or line.startswith("- **Average"):
+            elif line.startswith("- **总") or line.startswith("- **参") or line.startswith("- **人"):
                 # 汇总信息内容 - 去除markdown格式
                 clean_line = line.replace("- **", "").replace("**:", ":")
                 draw_text_mixed(draw, (x_margin, y_pos), clean_line, fill=text_color, font_type='normal')
                 y_pos += normal_height
-            elif line.startswith("## 详细数据"):
+            elif line.startswith("## 📋 详细数据") or line.startswith("## 详细数据"):
                 # 表格标题 - 添加背景色和圆角
                 draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
                                 fill=(241, 245, 249))
