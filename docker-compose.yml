@@ -14,6 +14,9 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - DATABASE_PATH=/app/data/wecom_bot.db
+      - LANG=zh_CN.UTF-8
+      - LC_ALL=zh_CN.UTF-8
+      - PYTHONIOENCODING=utf-8
     restart: unless-stopped
     networks:
       - wecom-network

@@ -7,18 +7,18 @@ WORKDIR /app
 # 安装构建依赖
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        build-essential \
-        python3-dev \
-        zlib1g-dev \
-        libjpeg-dev \
-        libpng-dev \
-        libfreetype6-dev \
-        liblcms2-dev \
-        libopenjp2-7-dev \
-        libtiff5-dev \
-        libwebp-dev \
-        libharfbuzz-dev \
-        libfribidi-dev \
+    build-essential \
+    python3-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libopenjp2-7-dev \
+    libtiff5-dev \
+    libwebp-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制requirements文件
@@ -37,6 +37,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
     fonts-noto-color-emoji \
+    locales \
     # Pillow 运行时依赖（不需要 -dev 包）
     libjpeg62-turbo \
     libpng16-16 \
@@ -48,6 +49,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libharfbuzz0b \
     libfribidi0 \
     && rm -rf /var/lib/apt/lists/*
+
+# 配置 locale 为 UTF-8
+RUN sed -i '/zh_CN.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen zh_CN.UTF-8
 
 # 从构建阶段复制已安装的Python包
 COPY --from=builder /install /usr/local
@@ -64,8 +69,10 @@ EXPOSE 5000
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=web_server.py
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
+
+
+ENV LANG=zh_CN.UTF-8
+ENV LC_ALL=zh_CN.UTF-8
 ENV PYTHONIOENCODING=utf-8
 
 # 启动命令(使用Gunicorn生产服务器)
