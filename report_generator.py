@@ -179,16 +179,47 @@ class ReportGenerator:
         border_color = (229, 231, 235)  # 浅灰色边框
         table_text_color = (64, 64, 64)  # 表格文字颜色
         
-        # 字体设置
-        standard_font_path = "C:/Windows/Fonts/simhei.ttf"
-        emoji_font_path = "C:/Windows/Fonts/seguiemj.ttf"
+        # 字体设置 - 支持 Windows 和 Linux 环境
+        import platform
+        system = platform.system()
+        
+        if system == "Windows":
+            standard_font_path = "C:/Windows/Fonts/simhei.ttf"
+            emoji_font_path = "C:/Windows/Fonts/seguiemj.ttf"
+        else:  # Linux/Unix (Docker环境)
+            # 使用Dockerfile中安装的Noto字体
+            standard_font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+            emoji_font_path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
         
         def load_font(path, size):
             try:
                 if os.path.exists(path):
+                    logging.info(f"加载字体: {path}")
                     return ImageFont.truetype(path, size)
-            except:
-                pass
+                else:
+                    logging.warning(f"字体文件不存在: {path}")
+            except Exception as e:
+                logging.error(f"加载字体失败: {path}, 错误: {e}")
+            
+            # 尝试fallback字体
+            fallback_fonts = []
+            if system == "Windows":
+                fallback_fonts = ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simsun.ttc"]
+            else:
+                fallback_fonts = [
+                    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+                ]
+            
+            for fallback in fallback_fonts:
+                try:
+                    if os.path.exists(fallback):
+                        logging.info(f"使用fallback字体: {fallback}")
+                        return ImageFont.truetype(fallback, size)
+                except:
+                    continue
+            
+            logging.warning("所有字体加载失败，使用默认字体")
             return ImageFont.load_default()
 
         # 加载字体
