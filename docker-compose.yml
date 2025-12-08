@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  wecom-bot:
+    build: .
+    container_name: wecom-bot
+    ports:
+      - "5000:5000"
+    volumes:
+      # 持久化数据库文件
+      - ./data:/app/data
+      # 持久化上传的文件
+      - ./file:/app/file
+    environment:
+      - TZ=Asia/Shanghai
+      - DATABASE_PATH=/app/data/wecom_bot.db
+      - LANG=zh_CN.UTF-8
+      - LC_ALL=zh_CN.UTF-8
+      - PYTHONIOENCODING=utf-8
+    restart: unless-stopped
+    networks:
+      - wecom-network
+
+networks:
+  wecom-network:
+    driver: bridge
