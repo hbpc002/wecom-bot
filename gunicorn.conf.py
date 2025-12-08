@@ -29,4 +29,7 @@ tmp_upload_dir = None
 # Environment
 raw_env = [
     "PYTHONUNBUFFERED=1",
+    "LANG=zh_CN.UTF-8",
+    "LC_ALL=zh_CN.UTF-8",
+    "PYTHONIOENCODING=utf-8",
 ]
