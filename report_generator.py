@@ -192,6 +192,22 @@ class ReportGenerator:
             except Exception as e:
                 logging.error(f"加载字体失败: {path}, 错误: {e}")
             
+            # 尝试fallback字体
+            fallback_fonts = []
+            if system == "Windows":
+                fallback_fonts = ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simsun.ttc"]
+            else:
+                fallback_fonts = [
+                    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
+                ]
+            
+            for fallback in fallback_fonts:
+                try:
+                    if os.path.exists(fallback):
+                        logging.info(f"使用fallback字体: {fallback}")
                         return ImageFont.truetype(fallback, size)
                 except:
                     continue

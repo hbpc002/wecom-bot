@@ -7,6 +7,19 @@ import requests
 import json
 import base64
 import hashlib
+from datetime import datetime, timedelta
+import schedule
+import time
+import logging
+from report_generator import ReportGenerator
+
+# 配置日志 - 移至 main() 函数或由调用者配置
+# logging.basicConfig(...) 已移除，避免覆盖全局配置
+
+class CallRecordingReporter:
+    def __init__(self, webhook_url, file_dir='file'):
+        self.webhook_url = webhook_url
+        self.file_dir = file_dir
         self.processed_files = set()
         self.team_mapping = {}
         
