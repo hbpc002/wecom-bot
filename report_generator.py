@@ -183,6 +183,17 @@ class ReportGenerator:
             # 优先使用Symbola (单色Emoji，兼容性好)，备选Noto Color Emoji (可能导致invalid pixel size)
             emoji_font_path = "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf"
         
+        def find_font_file(font_name, search_dirs=['/usr/share/fonts', '/usr/local/share/fonts']):
+            """在指定目录中递归查找字体文件"""
+            for search_dir in search_dirs:
+                if not os.path.exists(search_dir):
+                    continue
+                for root, dirs, files in os.walk(search_dir):
+                    for file in files:
+                        if file.lower() == font_name.lower():
+                            return os.path.join(root, file)
+            return None
+
         def load_font(path, size):
             try:
                 if os.path.exists(path):
@@ -198,7 +209,18 @@ class ReportGenerator:
             if system == "Windows":
                 fallback_fonts = ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simsun.ttc"]
             else:
-                fallback_fonts = [
+                # 尝试动态查找 Symbola.ttf
+                symbola_path = find_font_file("Symbola.ttf")
+                if symbola_path:
+                    logging.info(f"动态找到 Symbola 字体: {symbola_path}")
+                    fallback_fonts.append(symbola_path)
+                
+                # 尝试动态查找 NotoColorEmoji.ttf
+                noto_emoji_path = find_font_file("NotoColorEmoji.ttf")
+                if noto_emoji_path:
+                     fallback_fonts.append(noto_emoji_path)
+
+                fallback_fonts.extend([
                     "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",
                     "/usr/share/fonts/truetype/symbola/Symbola.ttf",
                     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
@@ -206,7 +228,7 @@ class ReportGenerator:
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
                     "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
-                ]
+                ])
             
             for fallback in fallback_fonts:
                 try:
