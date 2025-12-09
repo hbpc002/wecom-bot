@@ -13,14 +13,8 @@ import time
 import logging
 from report_generator import ReportGenerator
 
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('test_message.log', encoding='utf-8')
-    ]
-)
+# 配置日志 - 移至 main() 函数或由调用者配置
+# logging.basicConfig(...) 已移除，避免覆盖全局配置
 
 class CallRecordingReporter:
     def __init__(self, webhook_url, file_dir='file'):
