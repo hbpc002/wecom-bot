@@ -180,7 +180,8 @@ class ReportGenerator:
         else:  # Linux/Unix (Docker环境)
             # 使用Dockerfile中安装的Noto字体
             standard_font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-            emoji_font_path = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+            # 优先使用Symbola (单色Emoji，兼容性好)，备选Noto Color Emoji (可能导致invalid pixel size)
+            emoji_font_path = "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf"
         
         def load_font(path, size):
             try:
@@ -198,6 +199,9 @@ class ReportGenerator:
                 fallback_fonts = ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simsun.ttc"]
             else:
                 fallback_fonts = [
+                    "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",
+                    "/usr/share/fonts/truetype/symbola/Symbola.ttf",
+                    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
                     "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",

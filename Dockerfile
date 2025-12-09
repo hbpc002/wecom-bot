@@ -36,7 +36,7 @@ WORKDIR /app
 # 只安装运行时需要的库（不包括构建工具）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
-    fonts-noto-color-emoji \
+    fonts-symbola \
     locales \
     # Pillow 运行时依赖（不需要 -dev 包）
     libjpeg62-turbo \
