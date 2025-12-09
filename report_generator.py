@@ -212,7 +212,17 @@ class ReportGenerator:
                 except:
                     continue
             
-            logging.warning("所有字体加载失败，使用默认字体")
+            logging.warning(f"所有字体加载失败: {path}")
+            return None
+
+        def get_font(path, size, fallback_font=None):
+            font = load_font(path, size)
+            if font:
+                return font
+            if fallback_font:
+                logging.info(f"使用fallback字体对象替代: {path}")
+                return fallback_font
+            logging.warning("使用系统默认字体作为最终后备")
             return ImageFont.load_default()
 
         # 加载字体
@@ -221,22 +231,28 @@ class ReportGenerator:
         normal_size = 16
         table_size = 14
         
+        # 先加载标准字体
+        title_std = get_font(standard_font_path, title_size)
+        header_std = get_font(standard_font_path, header_size)
+        normal_std = get_font(standard_font_path, normal_size)
+        table_std = get_font(standard_font_path, table_size)
+        
         fonts = {
             'title': {
-                'standard': load_font(standard_font_path, title_size),
-                'emoji': load_font(emoji_font_path, title_size)
+                'standard': title_std,
+                'emoji': get_font(emoji_font_path, title_size, title_std)
             },
             'header': {
-                'standard': load_font(standard_font_path, header_size),
-                'emoji': load_font(emoji_font_path, header_size)
+                'standard': header_std,
+                'emoji': get_font(emoji_font_path, header_size, header_std)
             },
             'normal': {
-                'standard': load_font(standard_font_path, normal_size),
-                'emoji': load_font(emoji_font_path, normal_size)
+                'standard': normal_std,
+                'emoji': get_font(emoji_font_path, normal_size, normal_std)
             },
             'table': {
-                'standard': load_font(standard_font_path, table_size),
-                'emoji': load_font(emoji_font_path, table_size)
+                'standard': table_std,
+                'emoji': get_font(emoji_font_path, table_size, table_std)
             }
         }
         
@@ -272,18 +288,29 @@ class ReportGenerator:
             current_fonts = fonts[font_type]
             
             for char in text:
+                font = current_fonts['standard']
                 if is_emoji(char):
                     font = current_fonts['emoji']
-                    # Emoji字体通常需要特殊的处理，这里简单尝试直接绘制
-                    # 有些系统上Emoji字体可能包含颜色，PIL支持有限，这里作为普通文本绘制
-                else:
-                    font = current_fonts['standard']
                 
-                # 获取字符宽度
-                char_width = draw.textlength(char, font=font)
+                # 获取字符宽度，增加异常处理
+                try:
+                    char_width = draw.textlength(char, font=font)
+                except Exception as e:
+                    # 如果当前字体失败（如默认字体不支持中文/Emoji），尝试使用标准字体
+                    if font != current_fonts['standard']:
+                        font = current_fonts['standard']
+                        try:
+                            char_width = draw.textlength(char, font=font)
+                        except:
+                            char_width = 14 # 最后的保底宽度
+                    else:
+                        char_width = 14 # 最后的保底宽度
                 
-                # 绘制字符
-                draw.text((x, y), char, fill=fill, font=font)
+                # 绘制字符，增加异常处理
+                try:
+                    draw.text((x, y), char, fill=fill, font=font)
+                except Exception as e:
+                    logging.error(f"绘制字符失败: {char}, 错误: {e}")
                 
                 # 更新x坐标
                 x += char_width
