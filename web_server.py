@@ -20,11 +20,34 @@ def getfqdn(name=''):
     return name or 'localhost'
 socket.getfqdn = getfqdn
 
+import sys
+import codecs
+
+# 强制设置标准输出和错误输出为UTF-8
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
+
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# 移除可能存在的旧handler
+root_logger = logging.getLogger()
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# 创建新的handler
+file_handler = logging.FileHandler('web_server.log', encoding='utf-8')
+stream_handler = logging.StreamHandler(sys.stdout)
+
+# 设置格式
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+stream_handler.setFormatter(formatter)
+
+# 配置根logger
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(file_handler)
+root_logger.addHandler(stream_handler)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size

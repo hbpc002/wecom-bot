@@ -128,7 +128,7 @@ class ReportGenerator:
             
             # 创建包含标题和表格的完整图片内容
             full_image_lines = []
-            full_image_lines.append(f"📊{report_date.year}年{report_date.month}月{report_date.day}日 听录音统计报表")
+            full_image_lines.append(f"📊 {report_date.year}年{report_date.month}月{report_date.day}日 听录音统计报表")
             full_image_lines.append("")  # 空行
             full_image_lines.append("## 📈 汇总信息")
             full_image_lines.append(f"- **总听录音次数**: {total_operations}")
@@ -192,20 +192,6 @@ class ReportGenerator:
             except Exception as e:
                 logging.error(f"加载字体失败: {path}, 错误: {e}")
             
-            # 尝试fallback字体
-            fallback_fonts = []
-            if system == "Windows":
-                fallback_fonts = ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simsun.ttc"]
-            else:
-                fallback_fonts = [
-                    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-                ]
-            
-            for fallback in fallback_fonts:
-                try:
-                    if os.path.exists(fallback):
-                        logging.info(f"使用fallback字体: {fallback}")
                         return ImageFont.truetype(fallback, size)
                 except:
                     continue
