@@ -268,8 +268,8 @@ class ReportGenerator:
         img = Image.new('RGB', (img_width, img_height), background_color)
         draw = ImageDraw.Draw(img)
         
-        # 使用 Pilmoji
-        with Pilmoji(img, source=emoji_font_path) as pilmoji:
+        # 使用 Pilmoji (默认使用 Twemoji 源)
+        with Pilmoji(img) as pilmoji:
             def draw_text(xy, text, fill, font):
                 try:
                     pilmoji.text(xy, text, fill=fill, font=font)
