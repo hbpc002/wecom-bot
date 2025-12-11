@@ -270,9 +270,9 @@ class ReportGenerator:
         
         # 使用 Pilmoji (默认使用 Twemoji 源)
         with Pilmoji(img) as pilmoji:
-            def draw_text(xy, text, fill, font):
                 try:
-                    pilmoji.text(xy, text, fill=fill, font=font)
+                    # 向下微调 emoji 位置
+                    pilmoji.text(xy, text, fill=fill, font=font, emoji_position_offset=(0, 4))
                 except Exception as e:
                     logging.error(f"绘制文本失败: {text}, 错误: {e}")
                     # Fallback to standard draw if pilmoji fails
