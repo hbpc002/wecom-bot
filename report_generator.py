@@ -270,6 +270,7 @@ class ReportGenerator:
         
         # 使用 Pilmoji (默认使用 Twemoji 源)
         with Pilmoji(img) as pilmoji:
+            def draw_text(xy, text, fill, font):
                 try:
                     # 向下微调 emoji 位置
                     pilmoji.text(xy, text, fill=fill, font=font, emoji_position_offset=(0, 4))
