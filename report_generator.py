@@ -1,9 +1,11 @@
+```python
 import os
 import logging
 
 # 尝试导入PIL库，如果不存在则使用替代方案
 try:
     from PIL import Image, ImageDraw, ImageFont
+    from pilmoji import Pilmoji
     import textwrap
     PIL_AVAILABLE = True
 except ImportError:
@@ -194,53 +196,6 @@ class ReportGenerator:
                     logging.warning(f"字体文件不存在: {path}")
             except Exception as e:
                 logging.error(f"加载字体失败: {path}, 错误: {e}")
-            
-            # 尝试fallback字体
-            fallback_fonts = []
-            if system == "Windows":
-                fallback_fonts = ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simsun.ttc"]
-            else:
-                # 尝试动态查找 Symbola.ttf
-                symbola_path = find_font_file("Symbola.ttf")
-                if symbola_path:
-                    logging.info(f"动态找到 Symbola 字体: {symbola_path}")
-                    fallback_fonts.append(symbola_path)
-                
-                # 尝试动态查找 NotoColorEmoji.ttf
-                noto_emoji_path = find_font_file("NotoColorEmoji.ttf")
-                if noto_emoji_path:
-                     fallback_fonts.append(noto_emoji_path)
-
-                fallback_fonts.extend([
-                    "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf",  # Debian 11+
-                    "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",
-                    "/usr/share/fonts/truetype/symbola/Symbola.ttf",
-                    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-                    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-                    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
-                ])
-            
-            for fallback in fallback_fonts:
-                try:
-                    if os.path.exists(fallback):
-                        logging.info(f"使用fallback字体: {fallback}")
-                        return ImageFont.truetype(fallback, size)
-                except:
-                    continue
-            
-            logging.warning(f"所有字体加载失败: {path}")
-            return None
-
-        def get_font(path, size, fallback_font=None):
-            font = load_font(path, size)
-            if font:
-                return font
-            if fallback_font:
-                logging.info(f"使用fallback字体对象替代: {path}")
-                return fallback_font
-            logging.warning("使用系统默认字体作为最终后备")
             return ImageFont.load_default()
 
         # 加载字体
@@ -256,9 +211,9 @@ class ReportGenerator:
         else:  # Linux/Unix (Docker环境)
             # 使用Dockerfile中安装的Noto字体
             standard_font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-            # Symbola 字体路径因系统版本不同可能在不同位置
-            # 尝试多个可能的路径
+            # 查找Emoji字体用于Pilmoji
             possible_emoji_paths = [
+                "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", # Noto Color Emoji (优先)
                 "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf",  # Debian 11+
                 "/usr/share/fonts/truetype/symbola/Symbola.ttf",  # 某些系统
                 "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",  # 旧版本
@@ -271,43 +226,27 @@ class ReportGenerator:
                     break
             if not emoji_font_path:
                 # 动态搜索
-                found_symbola = find_font_file("Symbola.ttf")
-                if found_symbola:
-                    emoji_font_path = found_symbola
-                    logging.info(f"动态找到Symbola字体: {found_symbola}")
+                found_noto = find_font_file("NotoColorEmoji.ttf")
+                if found_noto:
+                    emoji_font_path = found_noto
+                    logging.info(f"动态找到NotoColorEmoji字体: {found_noto}")
                 else:
-                    found_noto = find_font_file("NotoColorEmoji.ttf")
-                    if found_noto:
-                        emoji_font_path = found_noto
-                        logging.info(f"动态找到NotoColorEmoji字体: {found_noto}")
-                    else:
-                        # 使用默认路径（可能会fallback到标准字体）
-                        emoji_font_path = "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf"
-                        logging.warning(f"未找到Emoji字体，将使用标准字体作为fallback")
+                    found_symbola = find_font_file("Symbola.ttf")
+                    if found_symbola:
+                        emoji_font_path = found_symbola
+                        logging.info(f"动态找到Symbola字体: {found_symbola}")
         
-        # 先加载标准字体
-        title_std = get_font(standard_font_path, title_size)
-        header_std = get_font(standard_font_path, header_size)
-        normal_std = get_font(standard_font_path, normal_size)
-        table_std = get_font(standard_font_path, table_size)
+        # 加载标准字体
+        title_font = load_font(standard_font_path, title_size)
+        header_font = load_font(standard_font_path, header_size)
+        normal_font = load_font(standard_font_path, normal_size)
+        table_font = load_font(standard_font_path, table_size)
         
         fonts = {
-            'title': {
-                'standard': title_std,
-                'emoji': get_font(emoji_font_path, title_size, title_std)
-            },
-            'header': {
-                'standard': header_std,
-                'emoji': get_font(emoji_font_path, header_size, header_std)
-            },
-            'normal': {
-                'standard': normal_std,
-                'emoji': get_font(emoji_font_path, normal_size, normal_std)
-            },
-            'table': {
-                'standard': table_std,
-                'emoji': get_font(emoji_font_path, table_size, table_std)
-            }
+            'title': title_font,
+            'header': header_font,
+            'normal': normal_font,
+            'table': table_font
         }
         
         # 计算行高 - 增加行高以提高可读性
@@ -325,156 +264,123 @@ class ReportGenerator:
         img = Image.new('RGB', (img_width, img_height), background_color)
         draw = ImageDraw.Draw(img)
         
-        def is_emoji(char):
-            # 简单的Emoji判断范围，可能不完全覆盖所有Emoji
-            code = ord(char)
-            return (0x1F300 <= code <= 0x1F5FF or  # Misc Symbols and Pictographs
-                    0x1F900 <= code <= 0x1F9FF or  # Supplemental Symbols and Pictographs
-                    0x1F600 <= code <= 0x1F64F or  # Emoticons
-                    0x1F680 <= code <= 0x1F6FF or  # Transport and Map Symbols
-                    0x2600 <= code <= 0x26FF or    # Misc Symbols
-                    0x2700 <= code <= 0x27BF or    # Dingbats
-                    0xFE00 <= code <= 0xFE0F or    # Variation Selectors
-                    0x1F1E6 <= code <= 0x1F1FF)    # Flags
-
-        def draw_text_mixed(draw, xy, text, fill, font_type):
-            x, y = xy
-            current_fonts = fonts[font_type]
-            
-            for char in text:
-                font = current_fonts['standard']
-                if is_emoji(char):
-                    font = current_fonts['emoji']
-                
-                # 获取字符宽度，增加异常处理
+        # 使用 Pilmoji
+        with Pilmoji(img, source=emoji_font_path) as pilmoji:
+            def draw_text(xy, text, fill, font):
                 try:
-                    char_width = draw.textlength(char, font=font)
+                    pilmoji.text(xy, text, fill=fill, font=font)
                 except Exception as e:
-                    # 如果当前字体失败（如默认字体不支持中文/Emoji），尝试使用标准字体
-                    if font != current_fonts['standard']:
-                        font = current_fonts['standard']
-                        try:
-                            char_width = draw.textlength(char, font=font)
-                        except:
-                            char_width = 14 # 最后的保底宽度
+                    logging.error(f"绘制文本失败: {text}, 错误: {e}")
+                    # Fallback to standard draw if pilmoji fails
+                    draw.text(xy, text, fill=fill, font=font)
+
+            # 绘制文本
+            y_pos = 30  # Initial y position
+            table_row_count = 0
+            in_table = False
+            for line in report_lines:
+                if "听录音统计报表" in line and not line.startswith("##"):
+                    # 主标题 - 添加背景色和圆角
+                    draw.rectangle([x_margin - 10, y_pos - 5, img_width - x_margin + 10, y_pos + title_height],
+                                    fill=(240, 248, 255))
+                    draw_text((x_margin, y_pos), line, fill=header_color, font=fonts['title'])
+                    y_pos += title_height + 10
+                elif line.startswith("📅") or line.startswith("📁"):
+                    # 副标题
+                    draw_text((x_margin, y_pos), line, fill=text_color, font=fonts['header'])
+                    y_pos += header_height
+                elif line == "":
+                    # 空行
+                    y_pos += normal_height // 2
+                elif line.startswith("## 📈 汇总信息") or line.startswith("## 汇总信息"):
+                    # 汇总信息标题 - 添加背景色和圆角
+                    draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
+                                    fill=(241, 245, 249))
+                    draw_text((x_margin, y_pos), line.replace("## ", ""), fill=header_color, font=fonts['header'])
+                    y_pos += header_height + 5
+                elif line.startswith("- **总") or line.startswith("- **参") or line.startswith("- **人"):
+                    # 汇总信息内容 - 去除markdown格式
+                    clean_line = line.replace("- **", "").replace("**:", ":")
+                    draw_text((x_margin, y_pos), clean_line, fill=text_color, font=fonts['normal'])
+                    y_pos += normal_height
+                elif line.startswith("## 📋 详细数据") or line.startswith("## 详细数据"):
+                    # 表格标题 - 添加背景色和圆角
+                    draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
+                                    fill=(241, 245, 249))
+                    draw_text((x_margin, y_pos), line.replace("## ", ""), fill=header_color, font=fonts['header'])
+                    y_pos += header_height + 10
+                    in_table = True
+                elif in_table and line.startswith("| 排名"):
+                    # 表头
+                    table_header = line
+                    header_cells = [cell.strip() for cell in table_header.split('|')[1:-1]]
+                    
+                    # 绘制表头背景
+                    draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height + 5],
+                                    fill=table_header_color)
+                    
+                    # 绘制表头文字
+                    x_pos = x_margin + 10
+                    if has_monthly:
+                        col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
                     else:
-                        char_width = 14 # 最后的保底宽度
-                
-                # 绘制字符，增加异常处理
-                try:
-                    draw.text((x, y), char, fill=fill, font=font)
-                except Exception as e:
-                    logging.error(f"绘制字符失败: {char}, 错误: {e}")
-                
-                # 更新x坐标
-                x += char_width
-
-        # 绘制文本
-        y_pos = 30  # Initial y position
-        table_row_count = 0
-        in_table = False
-        for line in report_lines:
-            if "听录音统计报表" in line and not line.startswith("##"):
-                # 主标题 - 添加背景色和圆角
-                draw.rectangle([x_margin - 10, y_pos - 5, img_width - x_margin + 10, y_pos + title_height],
-                                fill=(240, 248, 255))
-                draw_text_mixed(draw, (x_margin, y_pos), line, fill=header_color, font_type='title')
-                y_pos += title_height + 10
-            elif line.startswith("📅") or line.startswith("📁"):
-                # 副标题
-                draw_text_mixed(draw, (x_margin, y_pos), line, fill=text_color, font_type='header')
-                y_pos += header_height
-            elif line == "":
-                # 空行
-                y_pos += normal_height // 2
-            elif line.startswith("## 📈 汇总信息") or line.startswith("## 汇总信息"):
-                # 汇总信息标题 - 添加背景色和圆角
-                draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
-                                fill=(241, 245, 249))
-                draw_text_mixed(draw, (x_margin, y_pos), line.replace("## ", ""), fill=header_color, font_type='header')
-                y_pos += header_height + 5
-            elif line.startswith("- **总") or line.startswith("- **参") or line.startswith("- **人"):
-                # 汇总信息内容 - 去除markdown格式
-                clean_line = line.replace("- **", "").replace("**:", ":")
-                draw_text_mixed(draw, (x_margin, y_pos), clean_line, fill=text_color, font_type='normal')
-                y_pos += normal_height
-            elif line.startswith("## 📋 详细数据") or line.startswith("## 详细数据"):
-                # 表格标题 - 添加背景色和圆角
-                draw.rectangle([x_margin-5, y_pos-3, img_width-x_margin+5, y_pos+header_height+5],
-                                fill=(241, 245, 249))
-                draw_text_mixed(draw, (x_margin, y_pos), line.replace("## ", ""), fill=header_color, font_type='header')
-                y_pos += header_height + 10
-                in_table = True
-            elif in_table and line.startswith("| 排名"):
-                # 表头
-                table_header = line
-                header_cells = [cell.strip() for cell in table_header.split('|')[1:-1]]
-                
-                # 绘制表头背景
-                draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height + 5],
-                                fill=table_header_color)
-                
-                # 绘制表头文字
-                x_pos = x_margin + 10
-                if has_monthly:
-                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
-                else:
-                    col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
-                table_width = img_width - 2 * x_margin
-                for i, cell in enumerate(header_cells):
-                    if i < len(col_widths):
-                        draw_text_mixed(draw, (x_pos, y_pos + 5), cell, fill=(255, 255, 255), font_type='table')
-                        x_pos += int(table_width * col_widths[i])
-                y_pos += table_height + 5
-            elif in_table and line.startswith("|"):
-                # 表格数据行
-                cells = [cell.strip() for cell in line.split('|')[1:-1]]
-                
-                # 绘制行背景
-                if table_row_count % 2 == 0:
-                    row_color = table_row_color1
-                else:
-                    row_color = table_row_color2
-                draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height],
-                                fill=row_color)
-                
-                # 绘制单元格文字
-                x_pos = x_margin + 10
-                if has_monthly:
-                    col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
-                else:
-                    col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
-                table_width = img_width - 2 * x_margin
-                for i, cell in enumerate(cells):
-                    if i < len(col_widths):
-                        draw_text_mixed(draw, (x_pos, y_pos + 5), cell, fill=table_text_color, font_type='table')
-                        x_pos += int(table_width * col_widths[i])
-                y_pos += table_height
-                table_row_count += 1
-            elif in_table and not line.startswith("|"):
-                in_table = False
-                
-        # 裁剪图片 - 使用最终的y_pos计算图片高度
-        img_height = y_pos + 50
-        img = img.crop((0, 0, img_width, img_height))
-        
-        # 确保图片尺寸符合企业微信要求
-        img_width, img_height = img.size
-        if img_width > 900 or img_height > 900:
-            # 计算缩放比例
-            scale = min(900 / img_width, 900 / img_height)
-            new_width = int(img_width * scale)
-            new_height = int(img_height * scale)
-            img = img.resize((new_width, new_height), Image.LANCZOS)
-        
-        # 保存图片 - 使用PNG格式以保持清晰度
-        logging.info(f"Saving image to {output_path}")
-        img.save(output_path, 'PNG')
-        logging.info(f"Image saved to {output_path}")
-        
-        # 同时保存一个JPEG版本用于发送
-        if output_path.endswith('.png'):
-            jpeg_path = output_path[:-4] + '.jpg'
-            logging.info(f"Saving JPEG version to {jpeg_path}")
-            img.save(jpeg_path, 'JPEG', quality=95)
-            logging.info(f"JPEG version saved to {jpeg_path}")
+                        col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
+                    table_width = img_width - 2 * x_margin
+                    for i, cell in enumerate(header_cells):
+                        if i < len(col_widths):
+                            draw_text((x_pos, y_pos + 5), cell, fill=(255, 255, 255), font=fonts['table'])
+                            x_pos += int(table_width * col_widths[i])
+                    y_pos += table_height + 5
+                elif in_table and line.startswith("|"):
+                    # 表格数据行
+                    cells = [cell.strip() for cell in line.split('|')[1:-1]]
+                    
+                    # 绘制行背景
+                    if table_row_count % 2 == 0:
+                        row_color = table_row_color1
+                    else:
+                        row_color = table_row_color2
+                    draw.rectangle([x_margin, y_pos, img_width - x_margin, y_pos + table_height],
+                                    fill=row_color)
+                    
+                    # 绘制单元格文字
+                    x_pos = x_margin + 10
+                    if has_monthly:
+                        col_widths = [0.08, 0.12, 0.2, 0.18, 0.2, 0.22]  # 排名、团队、姓名、账号、当日听录音次数、月累计
+                    else:
+                        col_widths = [0.1, 0.15, 0.25, 0.2, 0.3]  # 排名、团队、姓名、账号、操作次数
+                    table_width = img_width - 2 * x_margin
+                    for i, cell in enumerate(cells):
+                        if i < len(col_widths):
+                            draw_text((x_pos, y_pos + 5), cell, fill=table_text_color, font=fonts['table'])
+                            x_pos += int(table_width * col_widths[i])
+                    y_pos += table_height
+                    table_row_count += 1
+                elif in_table and not line.startswith("|"):
+                    in_table = False
+                    
+            # 裁剪图片 - 使用最终的y_pos计算图片高度
+            img_height = y_pos + 50
+            img = img.crop((0, 0, img_width, img_height))
+            
+            # 确保图片尺寸符合企业微信要求
+            img_width, img_height = img.size
+            if img_width > 900 or img_height > 900:
+                # 计算缩放比例
+                scale = min(900 / img_width, 900 / img_height)
+                new_width = int(img_width * scale)
+                new_height = int(img_height * scale)
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+            
+            # 保存图片 - 使用PNG格式以保持清晰度
+            logging.info(f"Saving image to {output_path}")
+            img.save(output_path, 'PNG')
+            logging.info(f"Image saved to {output_path}")
+            
+            # 同时保存一个JPEG版本用于发送
+            if output_path.endswith('.png'):
+                jpeg_path = output_path[:-4] + '.jpg'
+                logging.info(f"Saving JPEG version to {jpeg_path}")
+                img.save(jpeg_path, 'JPEG', quality=95)
+                logging.info(f"JPEG version saved to {jpeg_path}")
+```
