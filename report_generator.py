@@ -174,15 +174,6 @@ class ReportGenerator:
         import platform
         system = platform.system()
         
-        if system == "Windows":
-            standard_font_path = "C:/Windows/Fonts/simhei.ttf"
-            emoji_font_path = "C:/Windows/Fonts/seguiemj.ttf"
-        else:  # Linux/Unix (Docker环境)
-            # 使用Dockerfile中安装的Noto字体
-            standard_font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-            # 优先使用Symbola (单色Emoji，兼容性好)，备选Noto Color Emoji (可能导致invalid pixel size)
-            emoji_font_path = "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf"
-        
         def find_font_file(font_name, search_dirs=['/usr/share/fonts', '/usr/local/share/fonts']):
             """在指定目录中递归查找字体文件"""
             for search_dir in search_dirs:
@@ -221,6 +212,7 @@ class ReportGenerator:
                      fallback_fonts.append(noto_emoji_path)
 
                 fallback_fonts.extend([
+                    "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf",  # Debian 11+
                     "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",
                     "/usr/share/fonts/truetype/symbola/Symbola.ttf",
                     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
@@ -256,6 +248,37 @@ class ReportGenerator:
         header_size = 18
         normal_size = 16
         table_size = 14
+        
+        # 设置字体路径
+        if system == "Windows":
+            standard_font_path = "C:/Windows/Fonts/simhei.ttf"
+            emoji_font_path = "C:/Windows/Fonts/seguiemj.ttf"
+        else:  # Linux/Unix (Docker环境)
+            # 使用Dockerfile中安装的Noto字体
+            standard_font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+            # Symbola 字体路径因系统版本不同可能在不同位置
+            # 尝试多个可能的路径
+            possible_emoji_paths = [
+                "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf",  # Debian 11+
+                "/usr/share/fonts/truetype/symbola/Symbola.ttf",  # 某些系统
+                "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",  # 旧版本
+            ]
+            emoji_font_path = None
+            for path in possible_emoji_paths:
+                if os.path.exists(path):
+                    emoji_font_path = path
+                    logging.info(f"找到Symbola字体: {path}")
+                    break
+            if not emoji_font_path:
+                # 动态搜索
+                found_symbola = find_font_file("Symbola.ttf")
+                if found_symbola:
+                    emoji_font_path = found_symbola
+                    logging.info(f"动态找到Symbola字体: {found_symbola}")
+                else:
+                    # 使用默认路径（可能会fallback到标准字体）
+                    emoji_font_path = "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf"
+                    logging.warning(f"未找到Symbola字体，将使用标准字体作为fallback")
         
         # 先加载标准字体
         title_std = get_font(standard_font_path, title_size)
