@@ -1,6 +1,20 @@
 
+
 import os
 import logging
+print("DEBUG: Loading report_generator.py v3...")
+try:
+    import PIL
+    print(f"DEBUG: PIL version: {PIL.__version__}")
+except ImportError:
+    print("DEBUG: PIL not found")
+
+try:
+    import pilmoji
+    print(f"DEBUG: pilmoji version: {pilmoji.__version__}")
+except ImportError as e:
+    print(f"DEBUG: pilmoji not found: {e}")
+
 
 # 尝试导入PIL库，如果不存在则使用替代方案
 try:
