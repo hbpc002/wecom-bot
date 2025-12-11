@@ -8,7 +8,8 @@ try:
     from pilmoji import Pilmoji
     import textwrap
     PIL_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    logging.warning(f"PIL or pilmoji import failed: {e}")
     PIL_AVAILABLE = False
 
 class ReportGenerator:
