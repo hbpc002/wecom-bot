@@ -34,9 +34,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 只安装运行时需要的库（不包括构建工具）
+# 启用 contrib 和 non-free 仓库以安装 fonts-symbola 和 fonts-noto-color-emoji
+RUN sed -i 's/^deb \(.*\) main$/deb \1 main contrib non-free/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's/^deb \(.*\) main$/deb \1 main contrib non-free/' /etc/apt/sources.list 2>/dev/null || true
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
     fonts-symbola \
+    fonts-noto-color-emoji \
     locales \
     # Pillow 运行时依赖（不需要 -dev 包）
     libjpeg62-turbo \
@@ -49,6 +54,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libharfbuzz0b \
     libfribidi0 \
     && rm -rf /var/lib/apt/lists/*
+
+# 打印字体安装位置（调试用）
+RUN echo "Searching for Symbola fonts:" && \
+    find /usr/share/fonts -name "*ymbola*" 2>/dev/null || echo "No Symbola font found" && \
+    echo "Searching for Noto Color Emoji fonts:" && \
+    find /usr/share/fonts -name "*oto*olor*moji*" 2>/dev/null || echo "No Noto Color Emoji font found"
 
 # 配置 locale 为 UTF-8
 RUN sed -i '/zh_CN.UTF-8/s/^# //g' /etc/locale.gen && \

@@ -262,12 +262,13 @@ class ReportGenerator:
                 "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf",  # Debian 11+
                 "/usr/share/fonts/truetype/symbola/Symbola.ttf",  # 某些系统
                 "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",  # 旧版本
+                "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", # Noto Color Emoji
             ]
             emoji_font_path = None
             for path in possible_emoji_paths:
                 if os.path.exists(path):
                     emoji_font_path = path
-                    logging.info(f"找到Symbola字体: {path}")
+                    logging.info(f"找到Emoji字体: {path}")
                     break
             if not emoji_font_path:
                 # 动态搜索
@@ -276,9 +277,14 @@ class ReportGenerator:
                     emoji_font_path = found_symbola
                     logging.info(f"动态找到Symbola字体: {found_symbola}")
                 else:
-                    # 使用默认路径（可能会fallback到标准字体）
-                    emoji_font_path = "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf"
-                    logging.warning(f"未找到Symbola字体，将使用标准字体作为fallback")
+                    found_noto = find_font_file("NotoColorEmoji.ttf")
+                    if found_noto:
+                        emoji_font_path = found_noto
+                        logging.info(f"动态找到NotoColorEmoji字体: {found_noto}")
+                    else:
+                        # 使用默认路径（可能会fallback到标准字体）
+                        emoji_font_path = "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf"
+                        logging.warning(f"未找到Emoji字体，将使用标准字体作为fallback")
         
         # 先加载标准字体
         title_std = get_font(standard_font_path, title_size)
