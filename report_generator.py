@@ -1,4 +1,4 @@
-```python
+
 import os
 import logging
 
@@ -383,4 +383,4 @@ class ReportGenerator:
                 logging.info(f"Saving JPEG version to {jpeg_path}")
                 img.save(jpeg_path, 'JPEG', quality=95)
                 logging.info(f"JPEG version saved to {jpeg_path}")
-```
+
