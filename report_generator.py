@@ -262,7 +262,6 @@ class ReportGenerator:
                 "/usr/share/fonts/truetype/ttf-ancient-fonts/Symbola.ttf",  # Debian 11+
                 "/usr/share/fonts/truetype/symbola/Symbola.ttf",  # 某些系统
                 "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",  # 旧版本
-                "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", # Noto Color Emoji
             ]
             emoji_font_path = None
             for path in possible_emoji_paths:

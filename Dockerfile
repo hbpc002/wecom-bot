@@ -35,7 +35,8 @@ WORKDIR /app
 
 # 只安装运行时需要的库（不包括构建工具）
 # 启用 contrib 和 non-free 仓库以安装 fonts-symbola 和 fonts-noto-color-emoji
-RUN sed -i 's/^deb \(.*\) main$/deb \1 main contrib non-free/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+# Debian 12 使用 deb822 格式 (debian.sources)
+RUN sed -i 's/Components: main/Components: main contrib non-free/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's/^deb \(.*\) main$/deb \1 main contrib non-free/' /etc/apt/sources.list 2>/dev/null || true
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
