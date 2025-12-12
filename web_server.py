@@ -66,12 +66,12 @@ DEFAULT_USERNAME = 'admin'
 DEFAULT_PASSWORD = 'admin123'
 
 # 企业微信Webhook配置
-WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"  # 测试环境
+
+WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=33cfebf3-b005-41c2-a472-8e52b9c70b44"  # 新闻
+# WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"  # 测试环境
 WEBHOOK_PROD = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"  # 生产环境
 
 # 定时任务配置
-scheduled_task_enabled = False
-scheduled_task_time = "10:00"
 scheduler_thread = None
 scheduler_running = False
 
@@ -618,26 +618,33 @@ def send_to_wecom():
 @login_required
 def get_schedule_status():
     """获取定时任务状态"""
-    global scheduled_task_enabled, scheduled_task_time
-    return jsonify({
-        'success': True,
-        'enabled': scheduled_task_enabled,
-        'time': scheduled_task_time
-    })
+    try:
+        with Database(app.config['DATABASE_PATH']) as db:
+            enabled = db.get_setting('schedule_enabled', 'false') == 'true'
+            time_str = db.get_setting('schedule_time', '10:00')
+            
+            return jsonify({
+                'success': True,
+                'enabled': enabled,
+                'time': time_str
+            })
+    except Exception as e:
+        logging.error(f"获取定时任务状态失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/schedule/update', methods=['POST'])
 @login_required
 def update_schedule():
     """更新定时任务配置"""
-    global scheduled_task_enabled, scheduled_task_time
     try:
         data = request.get_json()
         enabled = data.get('enabled', False)
         time_str = data.get('time', '10:00')
         
-        # 更新全局变量
-        scheduled_task_enabled = enabled
-        scheduled_task_time = time_str
+        with Database(app.config['DATABASE_PATH']) as db:
+            # 保存设置到数据库
+            db.set_setting('schedule_enabled', 'true' if enabled else 'false')
+            db.set_setting('schedule_time', time_str)
         
         if enabled:
             # 清除现有的所有定时任务
@@ -779,11 +786,20 @@ if __name__ == '__main__':
     logging.info("清理旧的临时文件...")
     cleanup_old_files(app.config['UPLOAD_FOLDER'], days_to_keep=30)
     
-    # 如果定时任务已启用，自动启动调度器
-    if scheduled_task_enabled:
-        schedule.every().day.at(scheduled_task_time).do(scheduled_send_task)
-        start_scheduler()
-        logging.info(f"定时任务已自动启用: 每天 {scheduled_task_time}")
+    # 初始化定时任务
+    try:
+        with Database(app.config['DATABASE_PATH']) as db:
+            enabled = db.get_setting('schedule_enabled', 'false') == 'true'
+            time_str = db.get_setting('schedule_time', '10:00')
+            
+            if enabled:
+                schedule.every().day.at(time_str).do(scheduled_send_task)
+                start_scheduler()
+                logging.info(f"定时任务已自动启用: 每天 {time_str}")
+            else:
+                logging.info("定时任务未启用")
+    except Exception as e:
+        logging.error(f"初始化定时任务失败: {e}")
     
     # 启动Flask应用
     app.run(host='0.0.0.0', port=5000, debug=False)

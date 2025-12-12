@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   wecom-bot:
-    image: ghcr.io/hbpc002/wecom-bot:master
+    build: .
     container_name: wecom-bot
     ports:
       - "5000:5000"
