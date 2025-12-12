@@ -67,8 +67,8 @@ DEFAULT_PASSWORD = 'admin123'
 
 # 企业微信Webhook配置
 
-WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=33cfebf3-b005-41c2-a472-8e52b9c70b44"  # 新闻
-# WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"  # 测试环境
+# WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=33cfebf3-b005-41c2-a472-8e52b9c70b44"  # 新闻
+WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"  # 测试环境
 WEBHOOK_PROD = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"  # 生产环境
 
 # 定时任务配置
