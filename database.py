@@ -98,12 +98,63 @@ class Database:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_team_name ON team_leaders(team_name)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_account_id ON team_leaders(account_id)')
             
+            # 创建系统设置表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
             self.conn.commit()
             logging.info(f"数据库初始化成功: {self.db_path}")
             
         except Exception as e:
             logging.error(f"数据库初始化失败: {e}")
             raise
+
+    def get_setting(self, key: str, default: str = None) -> str:
+        """获取系统设置
+        
+        Args:
+            key: 设置键
+            default: 默认值
+            
+        Returns:
+            str: 设置值
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('SELECT value FROM system_settings WHERE key = ?', (key,))
+            row = cursor.fetchone()
+            return row['value'] if row else default
+        except Exception as e:
+            logging.error(f"获取设置失败 {key}: {e}")
+            return default
+
+    def set_setting(self, key: str, value: str) -> bool:
+        """保存系统设置
+        
+        Args:
+            key: 设置键
+            value: 设置值
+            
+        Returns:
+            bool: 是否保存成功
+        """
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO system_settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (key, str(value)))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"保存设置失败 {key}: {e}")
+            self.conn.rollback()
+            return False
     
     def insert_listening_record(self, account: str, name: str, team: str, 
                                operation_time: datetime, source_file: str) -> bool:
