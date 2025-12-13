@@ -4,6 +4,7 @@ on:
   push:
     branches: 
       - "main"
+      - "master"
       - "develop" 
       - "dev"
       - "staging"
@@ -15,6 +16,7 @@ on:
   pull_request:
     branches: 
       - "main"
+      - "master"
       - "develop"
       - "dev"
       - "staging"
@@ -26,7 +28,7 @@ on:
       branch:
         description: 'Target branch to build'
         required: false
-        default: 'main'
+        default: 'master'
         type: string
       version_tag:
         description: 'Custom version tag (optional)'
