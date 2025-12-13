@@ -114,6 +114,53 @@ class Database:
             logging.error(f"数据库初始化失败: {e}")
             raise
 
+    def init_task_logs_table(self):
+        """初始化任务日志表（用于分布式锁）"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS task_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_name TEXT NOT NULL,
+                    task_date DATE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(task_name, task_date)
+                )
+            ''')
+            self.conn.commit()
+        except Exception as e:
+            logging.error(f"初始化任务日志表失败: {e}")
+
+    def acquire_task_lock(self, task_name: str, task_date: date) -> bool:
+        """尝试获取任务锁
+        
+        Args:
+            task_name: 任务名称
+            task_date: 任务日期
+            
+        Returns:
+            bool: 是否成功获取锁（True=获取成功，可以执行；False=获取失败，已执行过）
+        """
+        try:
+            # 确保表存在
+            self.init_task_logs_table()
+            
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                INSERT INTO task_logs (task_name, task_date)
+                VALUES (?, ?)
+            ''', (task_name, task_date))
+            
+            self.conn.commit()
+            return True
+            
+        except sqlite3.IntegrityError:
+            # 唯一约束冲突，说明任务已存在
+            return False
+        except Exception as e:
+            logging.error(f"获取任务锁失败: {e}")
+            return False
+
     def get_setting(self, key: str, default: str = None) -> str:
         """获取系统设置
         

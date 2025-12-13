@@ -67,7 +67,7 @@ DEFAULT_PASSWORD = 'admin123'
 
 # 企业微信Webhook配置
 
-# WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=33cfebf3-b005-41c2-a472-8e52b9c70b44"  # 新闻
+# WEBHOOK_PROD = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=33cfebf3-b005-41c2-a472-8e52b9c70b44"  # 新闻
 WEBHOOK_TEST = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=afa40fa1-1e9f-4e99-ba99-bf774f195a08"  # 测试环境
 WEBHOOK_PROD = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f063326c-45a0-4d87-bea3-131ceab86714"  # 生产环境
 
@@ -185,6 +185,12 @@ def scheduled_send_task():
         
         # 使用临时数据库连接
         with Database(app.config['DATABASE_PATH']) as db:
+            # 尝试获取任务锁
+            lock_name = "scheduled_report"
+            if not db.acquire_task_lock(lock_name, yesterday):
+                logging.warning(f"任务锁获取失败，任务可能已在其他进程执行: {lock_name} - {yesterday}")
+                return
+
             # 查询前一天的数据
             daily_data = db.get_daily_summary(yesterday)
             
